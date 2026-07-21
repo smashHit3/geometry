@@ -14,6 +14,7 @@ include(CTest)
 add_subdirectory(common)
 add_subdirectory(boolean)
 add_subdirectory(skeleton)
+add_subdirectory(trapezoid)
 
 if(BUILD_TESTING)
     add_test(NAME geometry-smoke COMMAND geometry)
