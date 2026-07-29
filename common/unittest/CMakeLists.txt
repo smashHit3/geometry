@@ -4,6 +4,7 @@ if(BUILD_TESTING)
         Main.cpp
         BasePointTest.cpp
         BasePointUtilTest.cpp
+        CommonUtilTest.cpp
     )
     target_link_libraries(
         test_geometry_common_base_point
