@@ -9,25 +9,36 @@
 
 namespace common {
 
+template <typename... value_types>
+using calculation_type = std::conditional_t<
+    (std::is_integral_v<value_types> && ...), long double,
+    std::common_type_t<value_types...>>;
+
 template <typename left_type, typename right_type>
 constexpr auto add(const BasePoint<left_type>& left,
                    const BasePoint<right_type>& right)
-    -> BasePoint<decltype(left.x() + right.x())> {
-    return {left.x() + right.x(), left.y() + right.y()};
+    -> BasePoint<calculation_type<left_type, right_type>> {
+    using result_type = calculation_type<left_type, right_type>;
+    return {static_cast<result_type>(left.x()) + right.x(),
+            static_cast<result_type>(left.y()) + right.y()};
 }
 
 template <typename left_type, typename right_type>
 constexpr auto subtract(const BasePoint<left_type>& left,
                         const BasePoint<right_type>& right)
-    -> BasePoint<decltype(left.x() - right.x())> {
-    return {left.x() - right.x(), left.y() - right.y()};
+    -> BasePoint<calculation_type<left_type, right_type>> {
+    using result_type = calculation_type<left_type, right_type>;
+    return {static_cast<result_type>(left.x()) - right.x(),
+            static_cast<result_type>(left.y()) - right.y()};
 }
 
 template <typename point_type, typename scalar_type,
           std::enable_if_t<std::is_arithmetic_v<scalar_type>, int> = 0>
 constexpr auto multiply(const BasePoint<point_type>& point, scalar_type scalar)
-    -> BasePoint<decltype(point.x() * scalar)> {
-    return {point.x() * scalar, point.y() * scalar};
+    -> BasePoint<calculation_type<point_type, scalar_type>> {
+    using result_type = calculation_type<point_type, scalar_type>;
+    return {static_cast<result_type>(point.x()) * scalar,
+            static_cast<result_type>(point.y()) * scalar};
 }
 
 template <typename point_type, typename scalar_type,
@@ -46,41 +57,45 @@ constexpr auto divide(const BasePoint<point_type>& point, scalar_type scalar)
 template <typename left_type, typename right_type>
 constexpr auto dot(const BasePoint<left_type>& left,
                    const BasePoint<right_type>& right)
-    -> decltype(left.x() * right.x() + left.y() * right.y()) {
-    return left.x() * right.x() + left.y() * right.y();
+    -> calculation_type<left_type, right_type> {
+    using result_type = calculation_type<left_type, right_type>;
+    return static_cast<result_type>(left.x()) * right.x() +
+           static_cast<result_type>(left.y()) * right.y();
 }
 
 template <typename left_type, typename right_type>
 constexpr auto cross(const BasePoint<left_type>& left,
                      const BasePoint<right_type>& right)
-    -> decltype(left.x() * right.y() - left.y() * right.x()) {
-    return left.x() * right.y() - left.y() * right.x();
+    -> calculation_type<left_type, right_type> {
+    using result_type = calculation_type<left_type, right_type>;
+    return static_cast<result_type>(left.x()) * right.y() -
+           static_cast<result_type>(left.y()) * right.x();
 }
 
 template <typename point_type>
-constexpr auto squared_length(const BasePoint<point_type>& point)
-    -> decltype(point.x() * point.x() + point.y() * point.y()) {
+constexpr auto squaredLength(const BasePoint<point_type>& point)
+    -> calculation_type<point_type, point_type> {
     return dot(point, point);
 }
 
 template <typename point_type>
 auto length(const BasePoint<point_type>& point)
-    -> decltype(std::sqrt(squared_length(point))) {
-    return std::sqrt(squared_length(point));
+    -> decltype(std::sqrt(squaredLength(point))) {
+    return std::sqrt(squaredLength(point));
 }
 
 template <typename left_type, typename right_type>
-constexpr auto squared_distance(const BasePoint<left_type>& left,
-                                const BasePoint<right_type>& right)
-    -> decltype(squared_length(subtract(left, right))) {
-    return squared_length(subtract(left, right));
+constexpr auto squaredDistance(const BasePoint<left_type>& left,
+                              const BasePoint<right_type>& right)
+    -> calculation_type<left_type, right_type> {
+    return squaredLength(subtract(left, right));
 }
 
 template <typename left_type, typename right_type>
 auto distance(const BasePoint<left_type>& left,
               const BasePoint<right_type>& right)
-    -> decltype(std::sqrt(squared_distance(left, right))) {
-    return std::sqrt(squared_distance(left, right));
+    -> decltype(std::sqrt(squaredDistance(left, right))) {
+    return std::sqrt(squaredDistance(left, right));
 }
 
 template <typename point_type>

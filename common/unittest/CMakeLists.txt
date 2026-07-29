@@ -14,5 +14,8 @@ if(BUILD_TESTING)
     )
 
     include(GoogleTest)
-    gtest_discover_tests(test_geometry_common_base_point)
+    gtest_discover_tests(
+        test_geometry_common_base_point
+        DISCOVERY_MODE PRE_TEST
+    )
 endif()

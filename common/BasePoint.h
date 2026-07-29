@@ -30,11 +30,11 @@ public:
         return m_y;
     }
 
-    constexpr void set_x(point_type x) {
+    constexpr void setX(point_type x) {
         m_x = x;
     }
 
-    constexpr void set_y(point_type y) {
+    constexpr void setY(point_type y) {
         m_y = y;
     }
 

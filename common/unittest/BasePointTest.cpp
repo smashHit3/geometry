@@ -40,8 +40,8 @@ TEST(BasePointTest, SupportsFloatingPointCoordinates) {
     EXPECT_DOUBLE_EQ(point.x(), 1.5);
     EXPECT_DOUBLE_EQ(point.y(), 2.25);
 
-    point.set_x(3.75);
-    point.set_y(4.5);
+    point.setX(3.75);
+    point.setY(4.5);
     EXPECT_DOUBLE_EQ(point.x(), 3.75);
     EXPECT_DOUBLE_EQ(point.y(), 4.5);
 }
@@ -52,7 +52,7 @@ TEST(BasePointTest, RejectsNonNumericCoordinateTypes) {
 
 TEST(BasePointTest, CoordinatesCanBeMutated) {
     common::BasePoint<int> point;
-    point.set_x(3);
+    point.setX(3);
     point.y() = 4;
     EXPECT_EQ(point.x(), 3);
     EXPECT_EQ(point.y(), 4);

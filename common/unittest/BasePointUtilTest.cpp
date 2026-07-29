@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <type_traits>
 
@@ -63,17 +64,30 @@ TEST(BasePointUtilTest, CalculatesLengthsAndDistances) {
     const BasePoint<int> point{3, 4};
     const BasePoint<int> other{6, 8};
 
-    EXPECT_EQ(squared_length(point), 25);
+    EXPECT_EQ(squaredLength(point), 25);
     EXPECT_DOUBLE_EQ(length(point), 5.0);
-    EXPECT_EQ(squared_distance(point, other), 25);
+    EXPECT_EQ(squaredDistance(point, other), 25);
     EXPECT_DOUBLE_EQ(distance(point, other), 5.0);
+}
+
+TEST(BasePointUtilTest, PromotesIntegralCalculationsToAvoidOverflow) {
+    const BasePoint<int> point{std::numeric_limits<int>::max(), 0};
+
+    const auto sum = add(point, BasePoint<int>{1, 0});
+    const auto product = multiply(point, 2);
+
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(sum)>,
+                                 BasePoint<long double>>);
+    EXPECT_EQ(sum.x(), static_cast<long double>(std::numeric_limits<int>::max()) + 1);
+    EXPECT_EQ(product.x(),
+              static_cast<long double>(std::numeric_limits<int>::max()) * 2);
 }
 
 TEST(BasePointUtilTest, NormalizesNonZeroPoints) {
     const auto normalized = normalize(BasePoint<int>{3, 4});
 
     static_assert(std::is_same_v<std::remove_cv_t<decltype(normalized)>,
-                                 BasePoint<double>>);
+                                 BasePoint<long double>>);
     EXPECT_DOUBLE_EQ(normalized.x(), 0.6);
     EXPECT_DOUBLE_EQ(normalized.y(), 0.8);
     EXPECT_THROW(normalize(BasePoint<int>{}), std::domain_error);
