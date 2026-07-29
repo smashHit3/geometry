@@ -13,6 +13,27 @@ TEST(CommonUtilTest, ComparesFloatingPointValuesWithRelativeTolerance) {
     EXPECT_THROW(almostEqual(1.0, 1.0, -0.1), std::invalid_argument);
 }
 
+TEST(CommonUtilTest, ComparesValuesWithToleranceAwareOrdering) {
+    constexpr auto tolerance = 1e-6;
+
+    EXPECT_TRUE(almostLess(1.0, 2.0, tolerance));
+    EXPECT_FALSE(almostLess(1.0, 1.0 + 1e-7, tolerance));
+    EXPECT_TRUE(almostLessOrEqual(1.0, 1.0 + 1e-7, tolerance));
+    EXPECT_FALSE(almostLessOrEqual(2.0, 1.0, tolerance));
+
+    EXPECT_TRUE(almostGreater(2.0, 1.0, tolerance));
+    EXPECT_FALSE(almostGreater(1.0 + 1e-7, 1.0, tolerance));
+    EXPECT_TRUE(almostGreaterOrEqual(1.0 + 1e-7, 1.0, tolerance));
+    EXPECT_FALSE(almostGreaterOrEqual(1.0, 2.0, tolerance));
+
+    EXPECT_THROW(almostLess(1.0, 2.0, -tolerance), std::invalid_argument);
+    EXPECT_THROW(almostLessOrEqual(1.0, 2.0, -tolerance),
+                 std::invalid_argument);
+    EXPECT_THROW(almostGreater(2.0, 1.0, -tolerance), std::invalid_argument);
+    EXPECT_THROW(almostGreaterOrEqual(2.0, 1.0, -tolerance),
+                 std::invalid_argument);
+}
+
 TEST(CommonUtilTest, DetectsValuesNearZero) {
     EXPECT_TRUE(isNearZero(1e-10));
     EXPECT_FALSE(isNearZero(1e-4));

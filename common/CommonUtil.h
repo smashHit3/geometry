@@ -32,6 +32,54 @@ constexpr bool almostEqual(
     return difference <= tolerance * scale;
 }
 
+template <typename left_type, typename right_type,
+          typename value_type = std::common_type_t<left_type, right_type, double>,
+          std::enable_if_t<std::is_arithmetic_v<left_type> &&
+                               std::is_arithmetic_v<right_type>,
+                           int> = 0>
+constexpr bool almostLess(
+    left_type left, right_type right,
+    value_type tolerance = static_cast<value_type>(defaultTolerance)) {
+    return !almostEqual(left, right, tolerance) &&
+           static_cast<value_type>(left) < static_cast<value_type>(right);
+}
+
+template <typename left_type, typename right_type,
+          typename value_type = std::common_type_t<left_type, right_type, double>,
+          std::enable_if_t<std::is_arithmetic_v<left_type> &&
+                               std::is_arithmetic_v<right_type>,
+                           int> = 0>
+constexpr bool almostLessOrEqual(
+    left_type left, right_type right,
+    value_type tolerance = static_cast<value_type>(defaultTolerance)) {
+    return almostEqual(left, right, tolerance) ||
+           static_cast<value_type>(left) < static_cast<value_type>(right);
+}
+
+template <typename left_type, typename right_type,
+          typename value_type = std::common_type_t<left_type, right_type, double>,
+          std::enable_if_t<std::is_arithmetic_v<left_type> &&
+                               std::is_arithmetic_v<right_type>,
+                           int> = 0>
+constexpr bool almostGreater(
+    left_type left, right_type right,
+    value_type tolerance = static_cast<value_type>(defaultTolerance)) {
+    return !almostEqual(left, right, tolerance) &&
+           static_cast<value_type>(left) > static_cast<value_type>(right);
+}
+
+template <typename left_type, typename right_type,
+          typename value_type = std::common_type_t<left_type, right_type, double>,
+          std::enable_if_t<std::is_arithmetic_v<left_type> &&
+                               std::is_arithmetic_v<right_type>,
+                           int> = 0>
+constexpr bool almostGreaterOrEqual(
+    left_type left, right_type right,
+    value_type tolerance = static_cast<value_type>(defaultTolerance)) {
+    return almostEqual(left, right, tolerance) ||
+           static_cast<value_type>(left) > static_cast<value_type>(right);
+}
+
 template <typename value_type,
           std::enable_if_t<std::is_arithmetic_v<value_type>, int> = 0>
 constexpr bool isNearZero(
