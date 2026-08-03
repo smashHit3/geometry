@@ -12,3 +12,6 @@ Makefile
 # IDE files
 .vscode/
 .idea/
+
+# Local problem-solving exercises
+/problems/
