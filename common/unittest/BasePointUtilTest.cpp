@@ -24,6 +24,33 @@ TEST(BasePointUtilTest, AddsAndSubtractsPoints) {
     EXPECT_DOUBLE_EQ(difference.y(), 2.0);
 }
 
+TEST(BasePointUtilTest, SupportsPointArithmeticOperators) {
+    const BasePoint<int> integer_point{3, -6};
+    const BasePoint<double> decimal_point{1.5, 2.0};
+
+    const auto sum = integer_point + decimal_point;
+    const auto difference = integer_point - decimal_point;
+    const auto product = integer_point * 2;
+    const auto reversed_product = 2 * integer_point;
+    const auto quotient = integer_point / 2;
+
+    static_assert(
+        std::is_same_v<std::remove_cv_t<decltype(sum)>, BasePoint<double>>);
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(product)>,
+                                 BasePoint<long double>>);
+    EXPECT_DOUBLE_EQ(sum.x(), 4.5);
+    EXPECT_DOUBLE_EQ(sum.y(), -4.0);
+    EXPECT_DOUBLE_EQ(difference.x(), 1.5);
+    EXPECT_DOUBLE_EQ(difference.y(), -8.0);
+    EXPECT_EQ(product.x(), 6);
+    EXPECT_EQ(product.y(), -12);
+    EXPECT_EQ(reversed_product.x(), 6);
+    EXPECT_EQ(reversed_product.y(), -12);
+    EXPECT_DOUBLE_EQ(quotient.x(), 1.5);
+    EXPECT_DOUBLE_EQ(quotient.y(), -3.0);
+    EXPECT_THROW(integer_point / 0, std::invalid_argument);
+}
+
 TEST(BasePointUtilTest, MultipliesAndDividesByScalars) {
     const BasePoint<int> point{3, -6};
 

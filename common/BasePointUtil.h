@@ -24,12 +24,26 @@ constexpr auto add(const BasePoint<left_type>& left,
 }
 
 template <typename left_type, typename right_type>
+constexpr auto operator+(const BasePoint<left_type>& left,
+                         const BasePoint<right_type>& right)
+    -> BasePoint<calculation_type<left_type, right_type>> {
+    return add(left, right);
+}
+
+template <typename left_type, typename right_type>
 constexpr auto subtract(const BasePoint<left_type>& left,
                         const BasePoint<right_type>& right)
     -> BasePoint<calculation_type<left_type, right_type>> {
     using result_type = calculation_type<left_type, right_type>;
     return {static_cast<result_type>(left.x()) - right.x(),
             static_cast<result_type>(left.y()) - right.y()};
+}
+
+template <typename left_type, typename right_type>
+constexpr auto operator-(const BasePoint<left_type>& left,
+                         const BasePoint<right_type>& right)
+    -> BasePoint<calculation_type<left_type, right_type>> {
+    return subtract(left, right);
 }
 
 template <typename point_type, typename scalar_type,
@@ -43,6 +57,20 @@ constexpr auto multiply(const BasePoint<point_type>& point, scalar_type scalar)
 
 template <typename point_type, typename scalar_type,
           std::enable_if_t<std::is_arithmetic_v<scalar_type>, int> = 0>
+constexpr auto operator*(const BasePoint<point_type>& point, scalar_type scalar)
+    -> BasePoint<calculation_type<point_type, scalar_type>> {
+    return multiply(point, scalar);
+}
+
+template <typename scalar_type, typename point_type,
+          std::enable_if_t<std::is_arithmetic_v<scalar_type>, int> = 0>
+constexpr auto operator*(scalar_type scalar, const BasePoint<point_type>& point)
+    -> BasePoint<calculation_type<point_type, scalar_type>> {
+    return multiply(point, scalar);
+}
+
+template <typename point_type, typename scalar_type,
+          std::enable_if_t<std::is_arithmetic_v<scalar_type>, int> = 0>
 constexpr auto divide(const BasePoint<point_type>& point, scalar_type scalar)
     -> BasePoint<std::common_type_t<point_type, scalar_type, double>> {
     if (scalar == 0) {
@@ -52,6 +80,13 @@ constexpr auto divide(const BasePoint<point_type>& point, scalar_type scalar)
     using result_type = std::common_type_t<point_type, scalar_type, double>;
     return {static_cast<result_type>(point.x()) / scalar,
             static_cast<result_type>(point.y()) / scalar};
+}
+
+template <typename point_type, typename scalar_type,
+          std::enable_if_t<std::is_arithmetic_v<scalar_type>, int> = 0>
+constexpr auto operator/(const BasePoint<point_type>& point, scalar_type scalar)
+    -> BasePoint<std::common_type_t<point_type, scalar_type, double>> {
+    return divide(point, scalar);
 }
 
 template <typename left_type, typename right_type>
