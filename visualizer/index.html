@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Geometry Visualizer</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #0b1020; color: #e6edf7; }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 100vh; }
+    .stage { display: flex; flex-direction: column; min-width: 0; padding: 24px; gap: 16px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    h1 { font-size: 20px; margin: 0; letter-spacing: .02em; }
+    header p, .hint { margin: 0; color: #98a6bd; font-size: 13px; }
+    canvas { width: 100%; flex: 1; min-height: 480px; display: block; border: 1px solid #2a3855; border-radius: 12px; background: #10192d; cursor: crosshair; }
+    aside { border-left: 1px solid #263451; background: #111a2e; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+    h2 { margin: 0 0 10px; color: #aebce0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { appearance: none; border: 1px solid #344665; border-radius: 7px; background: #182641; padding: 9px 8px; color: #dce8ff; cursor: pointer; font: inherit; font-size: 13px; }
+    button:hover { background: #24385d; border-color: #5682ca; }
+    button.primary { background: #356dcc; border-color: #5b93f1; color: white; }
+    button.primary:hover { background: #477fdc; }
+    .legend { display: grid; gap: 9px; color: #b8c6df; font-size: 13px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+    .dot.point { background: #78b7ff; } .dot.result { background: #ffbe5b; } .dot.grid { background: #7ad9bf; }
+    .stat { border: 1px solid #2a3a59; border-radius: 8px; padding: 12px; background: #0d1527; display: grid; gap: 8px; font-size: 13px; }
+    .stat div { display: flex; justify-content: space-between; gap: 12px; }
+    .stat span { color: #8f9fbb; } .stat strong { color: #eaf1ff; font-weight: 600; text-align: right; }
+    .hint { line-height: 1.6; }
+    @media (max-width: 760px) { main { grid-template-columns: 1fr; } aside { border-left: 0; border-top: 1px solid #263451; } .stage { min-height: 70vh; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="stage">
+      <header>
+        <div><h1>Geometry Algorithm Visualizer</h1><p>Point editing, closest pairs, and Uniform Grid indexing</p></div>
+        <p id="mode">Edit mode</p>
+      </header>
+      <canvas id="canvas" aria-label="Geometry algorithm canvas"></canvas>
+      <p class="hint">Click to add a point and drag an existing point to move it. Choose an algorithm to inspect its result and spatial partitioning.</p>
+    </section>
+    <aside>
+      <section>
+        <h2>Dataset</h2>
+        <div class="controls">
+          <button id="sample">Sample points</button><button id="random">30 random points</button>
+          <button id="clear">Clear canvas</button><button id="reset">Reset view</button>
+        </div>
+      </section>
+      <section>
+        <h2>Algorithm</h2>
+        <div class="controls">
+          <button class="primary" id="closest">Closest pair</button><button id="grid">Uniform Grid</button>
+          <button id="none">Edit only</button>
+        </div>
+      </section>
+      <section>
+        <h2>Legend</h2>
+        <div class="legend">
+          <div><i class="dot point"></i>Input point</div>
+          <div><i class="dot result"></i>Closest pair</div>
+          <div><i class="dot grid"></i>Spatial grid</div>
+        </div>
+      </section>
+      <section>
+        <h2>Run details</h2>
+        <div class="stat">
+          <div><span>Points</span><strong id="count">0</strong></div>
+          <div><span>Algorithm</span><strong id="algorithm">None</strong></div>
+          <div><span>Distance / cell</span><strong id="detail">-</strong></div>
+          <div><span>Comparisons</span><strong id="comparisons">0</strong></div>
+        </div>
+      </section>
+    </aside>
+  </main>
+  <script>
+    const canvas = document.querySelector('#canvas');
+    const ctx = canvas.getContext('2d');
+    const status = {
+      mode: document.querySelector('#mode'), count: document.querySelector('#count'),
+      algorithm: document.querySelector('#algorithm'), detail: document.querySelector('#detail'),
+      comparisons: document.querySelector('#comparisons')
+    };
+    let points = [], algorithm = 'none', closestPair = null, comparisons = 0, dragged = null;
+    const samplePoints = [[18,22],[32,71],[45,36],[58,63],[61,65],[74,25],[84,78],[88,45],[22,49],[40,85],[67,49],[93,16]];
+
+    function resize() {
+      const ratio = window.devicePixelRatio || 1, rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      draw();
+    }
+    function size() { const r = canvas.getBoundingClientRect(); return { w: r.width, h: r.height }; }
+    function toCanvas(event) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+    function makePoint(x, y) { const {w, h} = size(); return { x: x * w / 100, y: y * h / 100 }; }
+    function setSample() { points = samplePoints.map(([x,y]) => makePoint(x,y)); run(); }
+    function setRandom() {
+      const {w,h} = size(); points = Array.from({length: 30}, () => ({x: 28 + Math.random() * (w - 56), y: 28 + Math.random() * (h - 56)})); run();
+    }
+    function findClosest() {
+      let best = null; comparisons = 0;
+      for (let i=0; i<points.length; ++i) for (let j=i+1; j<points.length; ++j) {
+        const distance = Math.hypot(points[i].x-points[j].x, points[i].y-points[j].y); comparisons++;
+        if (!best || distance < best.distance) best = {a: points[i], b: points[j], distance};
+      }
+      return best;
+    }
+    function cellSize() { const {w,h} = size(); return Math.max(55, Math.min(110, Math.sqrt(w*h / Math.max(points.length, 1)))); }
+    function drawGrid() {
+      const {w,h} = size(), cell = cellSize();
+      ctx.save(); ctx.strokeStyle = '#32796c'; ctx.lineWidth = 1; ctx.globalAlpha = .65;
+      for (let x=0; x<w; x+=cell) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+      for (let y=0; y<h; y+=cell) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+      ctx.restore();
+      return cell;
+    }
+    function draw() {
+      const {w,h} = size();
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle = '#10192d'; ctx.fillRect(0,0,w,h);
+      ctx.strokeStyle = '#1b2b48'; ctx.lineWidth = 1;
+      for (let x=0; x<w; x+=25) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+      for (let y=0; y<h; y+=25) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+      const cell = algorithm === 'grid' ? drawGrid() : null;
+      if (closestPair) {
+        ctx.save(); ctx.strokeStyle = '#ffbe5b'; ctx.lineWidth = 3; ctx.beginPath();
+        ctx.moveTo(closestPair.a.x, closestPair.a.y); ctx.lineTo(closestPair.b.x, closestPair.b.y); ctx.stroke(); ctx.restore();
+      }
+      for (const point of points) {
+        const highlighted = closestPair && (point === closestPair.a || point === closestPair.b);
+        ctx.beginPath(); ctx.arc(point.x, point.y, highlighted ? 7 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = highlighted ? '#ffbe5b' : '#78b7ff'; ctx.fill();
+        ctx.strokeStyle = '#ddebff'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      status.count.textContent = points.length;
+      status.comparisons.textContent = comparisons;
+      status.algorithm.textContent = algorithm === 'closest' ? 'Brute-force closest pair' : algorithm === 'grid' ? 'Uniform Grid' : 'None';
+      status.detail.textContent = algorithm === 'closest' && closestPair ? `${closestPair.distance.toFixed(2)} px` : algorithm === 'grid' ? `${cell.toFixed(0)} px` : '-';
+      status.mode.textContent = algorithm === 'none' ? 'Edit mode' : 'Algorithm demo';
+    }
+    function run() {
+      comparisons = 0; closestPair = algorithm === 'closest' ? findClosest() : null; draw();
+    }
+    canvas.addEventListener('pointerdown', event => {
+      const position = toCanvas(event);
+      dragged = points.find(point => Math.hypot(point.x-position.x, point.y-position.y) < 10);
+      if (!dragged) { points.push(position); run(); }
+      canvas.setPointerCapture(event.pointerId);
+    });
+    canvas.addEventListener('pointermove', event => { if (dragged) { Object.assign(dragged, toCanvas(event)); run(); } });
+    canvas.addEventListener('pointerup', () => { dragged = null; });
+    document.querySelector('#sample').onclick = setSample;
+    document.querySelector('#random').onclick = setRandom;
+    document.querySelector('#clear').onclick = () => { points=[]; run(); };
+    document.querySelector('#reset').onclick = () => { algorithm='none'; closestPair=null; comparisons=0; draw(); };
+    document.querySelector('#closest').onclick = () => { algorithm='closest'; run(); };
+    document.querySelector('#grid').onclick = () => { algorithm='grid'; run(); };
+    document.querySelector('#none').onclick = () => { algorithm='none'; run(); };
+    window.addEventListener('resize', resize);
+    resize(); setSample();
+  </script>
+</body>
+</html>

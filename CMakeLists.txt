@@ -17,6 +17,17 @@ add_executable(geometry
 target_compile_features(geometry PRIVATE cxx_std_17)
 target_link_libraries(geometry PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/visualizer/index.html"
+    "${CMAKE_CURRENT_BINARY_DIR}/geometry_visualizer.html"
+    COPYONLY
+)
+target_compile_definitions(
+    geometry
+    PRIVATE
+        GEOMETRY_VISUALIZER_PATH="${CMAKE_CURRENT_BINARY_DIR}/geometry_visualizer.html"
+)
+
 include(CTest)
 
 if(BUILD_TESTING)
