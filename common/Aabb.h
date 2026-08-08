@@ -7,6 +7,7 @@
 
 namespace common {
 
+// Axis-aligned bounding box represented by its minimum and maximum coordinates.
 template <typename coordinate_type,
           std::enable_if_t<std::is_arithmetic_v<coordinate_type>, int> = 0>
 class Aabb {

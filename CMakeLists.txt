@@ -9,6 +9,8 @@ project(geometry
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_executable(geometry
     gui/main.cpp
     gui/GeometryCanvas.cpp
