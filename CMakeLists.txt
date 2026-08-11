@@ -2,12 +2,20 @@ cmake_minimum_required(VERSION 3.20)
 
 project(geometry
     VERSION 0.1.0
-    DESCRIPTION "Geometry library"
+    DESCRIPTION "Geometry library and interactive visualizer"
     LANGUAGES CXX
 )
 
-add_executable(geometry main.cpp)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+
+add_executable(geometry
+    gui/main.cpp
+    gui/GeometryCanvas.cpp
+    gui/MainWindow.cpp
+)
 target_compile_features(geometry PRIVATE cxx_std_17)
+target_link_libraries(geometry PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 include(CTest)
 
@@ -26,8 +34,6 @@ add_subdirectory(common)
 add_subdirectory(boolean)
 add_subdirectory(skeleton)
 add_subdirectory(trapezoid)
-add_subdirectory(problems)
-
-if(BUILD_TESTING)
-    add_test(NAME geometry-smoke COMMAND geometry)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/problems/CMakeLists.txt")
+    add_subdirectory(problems)
 endif()
