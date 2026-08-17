@@ -1,4 +1,4 @@
-#include "boolean/RectClipper.h"
+#include "boolean/detail/RectClipper.h"
 
 #include <gtest/gtest.h>
 
