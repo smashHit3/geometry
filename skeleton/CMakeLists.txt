@@ -1,5 +1,6 @@
 add_library(
     geometry_skeleton
+    StraightSkeleton.cpp
     detail/IncrementalDelaunaySkeleton.cpp
 )
 target_include_directories(geometry_skeleton PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")

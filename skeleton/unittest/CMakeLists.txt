@@ -2,6 +2,7 @@ if(BUILD_TESTING)
     add_executable(
         test_geometry_skeleton
         IncrementalDelaunaySkeletonTest.cpp
+        StraightSkeletonTest.cpp
         FortuneVoronoiTest.cpp
     )
     target_link_libraries(
