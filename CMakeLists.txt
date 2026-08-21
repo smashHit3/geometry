@@ -6,18 +6,22 @@ project(geometry
     LANGUAGES CXX
 )
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets)
+if(QT_FOUND)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(geometry
-    gui/main.cpp
-    gui/GeometryCanvas.cpp
-    gui/MainWindow.cpp
-)
-target_compile_features(geometry PRIVATE cxx_std_17)
-target_link_libraries(geometry PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+if(QT_FOUND)
+    add_executable(geometry
+        gui/main.cpp
+        gui/GeometryCanvas.cpp
+        gui/MainWindow.cpp
+    )
+    target_compile_features(geometry PRIVATE cxx_std_17)
+    target_link_libraries(geometry PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+endif()
 
 include(CTest)
 
