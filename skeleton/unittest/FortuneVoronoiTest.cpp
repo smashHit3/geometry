@@ -1,4 +1,4 @@
-#include "skeleton/detail/FortuneVoronoi.h"
+#include "skeleton/FortuneVoronoi.h"
 
 #include <gtest/gtest.h>
 

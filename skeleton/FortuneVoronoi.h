@@ -1,8 +1,10 @@
-#ifndef SKELETON_DETAIL_FORTUNE_VORONOI_H
-#define SKELETON_DETAIL_FORTUNE_VORONOI_H
+#ifndef SKELETON_FORTUNE_VORONOI_H
+#define SKELETON_FORTUNE_VORONOI_H
 
 #include "common/Aabb.h"
 #include "common/BasePointUtil.h"
+#include "skeleton/PolygonFortuneVoronoi.h"
+#include "skeleton/SegmentFortuneVoronoi.h"
 #include "skeleton/Types.h"
 
 #include <algorithm>
@@ -873,4 +875,4 @@ std::vector<VoronoiCell> halfPlaneVoronoiCells(
 
 } // namespace skeleton
 
-#endif // SKELETON_DETAIL_FORTUNE_VORONOI_H
+#endif // SKELETON_FORTUNE_VORONOI_H

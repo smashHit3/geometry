@@ -1,9 +1,9 @@
 if(BUILD_TESTING)
     add_executable(
         test_geometry_skeleton
-        IncrementalDelaunaySkeletonTest.cpp
-        StraightSkeletonTest.cpp
         FortuneVoronoiTest.cpp
+        PolygonFortuneVoronoiTest.cpp
+        SegmentFortuneVoronoiTest.cpp
     )
     target_link_libraries(
         test_geometry_skeleton
