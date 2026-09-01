@@ -14,17 +14,17 @@ double featureDistance(const Point& point,
                        const std::vector<Point>& polygon,
                        const PolygonFeatureRef& feature) {
     if (feature.kind == PolygonFeatureRef::Kind::Vertex) {
-        return common::distance(point, polygon[feature.inputIndex]);
+        return common::geometryutil::distance(point, polygon[feature.inputIndex]);
     }
     const Point& first = polygon[feature.inputIndex];
     const Point& second =
         polygon[(feature.inputIndex + 1U) % polygon.size()];
     const Point direction = second - first;
     const double parameter = std::clamp(
-        common::dot(point - first, direction) /
-            common::squaredLength(direction),
+        common::geometryutil::dot(point - first, direction) /
+            common::geometryutil::squaredLength(direction),
         0.0, 1.0);
-    return common::distance(
+    return common::geometryutil::distance(
         point, first + direction * parameter);
 }
 
@@ -35,11 +35,11 @@ bool insideOrOnPolygon(const Point& point,
          first < polygon.size(); second = first++) {
         const Point edge = polygon[first] - polygon[second];
         const Point relative = point - polygon[second];
-        const double cross = common::cross(edge, relative);
-        const double projection = common::dot(relative, edge);
+        const double cross = common::geometryutil::cross(edge, relative);
+        const double projection = common::geometryutil::dot(relative, edge);
         if (std::abs(cross) <= 1e-7 &&
             projection >= -1e-7 &&
-            projection <= common::squaredLength(edge) + 1e-7) {
+            projection <= common::geometryutil::squaredLength(edge) + 1e-7) {
             return true;
         }
         const bool crosses =
@@ -77,7 +77,7 @@ void expectValidFeatureEdges(const PolygonVoronoiDiagram& diagram,
 TEST(PolygonFortuneVoronoiTest, BuildsTriangleBoundaryFeatureDiagram) {
     const std::vector<Point> polygon{{0.0, 0.0}, {10.0, 0.0}, {5.0, 8.0}};
     const auto diagram = polygonBoundaryVoronoiDiagram(
-        polygon, common::Aabb<double>{-2.0, -2.0, 12.0, 10.0}, 1e-4);
+        polygon, common::geometry::Aabb<double>{-2.0, -2.0, 12.0, 10.0}, 1e-4);
 
     ASSERT_GE(diagram.edges.size(), 3U);
     expectValidFeatureEdges(diagram, polygon, 2e-2);
@@ -123,7 +123,7 @@ TEST(PolygonFortuneVoronoiTest, BuildsSquareMedialAxis) {
 TEST(PolygonFortuneVoronoiTest, ClipsBoundaryDiagramToSuppliedBounds) {
     const std::vector<Point> polygon{
         {0.0, 0.0}, {10.0, 0.0}, {10.0, 10.0}, {0.0, 10.0}};
-    const common::Aabb<double> bounds{2.0, 2.0, 8.0, 8.0};
+    const common::geometry::Aabb<double> bounds{2.0, 2.0, 8.0, 8.0};
 
     const auto diagram =
         polygonBoundaryVoronoiDiagram(polygon, bounds, 1e-4);
@@ -185,7 +185,7 @@ TEST(PolygonFortuneVoronoiTest, IsIndependentOfWinding) {
 }
 
 TEST(PolygonFortuneVoronoiTest, RejectsNonSimplePolygons) {
-    const common::Aabb<double> bounds{-1.0, -1.0, 6.0, 6.0};
+    const common::geometry::Aabb<double> bounds{-1.0, -1.0, 6.0, 6.0};
     EXPECT_THROW(
         polygonBoundaryVoronoiDiagram(
             std::vector<Point>{{0.0, 0.0}, {4.0, 4.0},

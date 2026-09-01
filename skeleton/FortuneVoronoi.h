@@ -1,8 +1,8 @@
 #ifndef SKELETON_FORTUNE_VORONOI_H
 #define SKELETON_FORTUNE_VORONOI_H
 
-#include "common/Aabb.h"
-#include "common/BasePointUtil.h"
+#include "common/geometry/Aabb.h"
+#include "common/geometryutil/BasePointUtil.h"
 #include "skeleton/PolygonFortuneVoronoi.h"
 #include "skeleton/SegmentFortuneVoronoi.h"
 #include "skeleton/Types.h"
@@ -43,7 +43,7 @@ namespace detail {
 
 class FortuneVoronoiBuilder {
 public:
-    FortuneVoronoiBuilder(std::vector<Point> sites, common::Aabb<double> bounds)
+    FortuneVoronoiBuilder(std::vector<Point> sites, common::geometry::Aabb<double> bounds)
         : m_sites(std::move(sites)), m_bounds(bounds) {
         validateInput();
         m_scale = coordinateScale();
@@ -141,7 +141,7 @@ private:
 
     std::vector<Point> m_sites;
     std::vector<Point> m_sweepSites;
-    common::Aabb<double> m_bounds;
+    common::geometry::Aabb<double> m_bounds;
     double m_scale = 1.0;
     double m_lengthEpsilon = 1e-11;
     double m_areaEpsilon = 1e-12;
@@ -474,23 +474,23 @@ private:
 
     static double orientation(const Point& first, const Point& second,
                               const Point& third) {
-        return common::cross(second - first, third - second);
+        return common::geometryutil::cross(second - first, third - second);
     }
 
     bool circumcenter(const Point& first, const Point& second, const Point& third,
                       Point& center) const {
         const Point second_offset = second - first;
         const Point third_offset = third - first;
-        const double denominator = 2.0 * common::cross(second_offset, third_offset);
+        const double denominator = 2.0 * common::geometryutil::cross(second_offset, third_offset);
         if (std::abs(denominator) <= m_areaEpsilon) return false;
         center = {
             first.x() +
-                (common::squaredLength(second_offset) * third_offset.y() -
-                 common::squaredLength(third_offset) * second_offset.y()) /
+                (common::geometryutil::squaredLength(second_offset) * third_offset.y() -
+                 common::geometryutil::squaredLength(third_offset) * second_offset.y()) /
                     denominator,
             first.y() +
-                (common::squaredLength(third_offset) * second_offset.x() -
-                 common::squaredLength(second_offset) * third_offset.x()) /
+                (common::geometryutil::squaredLength(third_offset) * second_offset.x() -
+                 common::geometryutil::squaredLength(second_offset) * third_offset.x()) /
                     denominator};
         return std::isfinite(center.x()) && std::isfinite(center.y());
     }
@@ -527,7 +527,7 @@ private:
     void addVertex(EdgeRecord* edge, const Point& point, std::size_t opposite) {
         ++edge->completedBreakpoints;
         for (const EdgeVertex& existing : edge->vertices) {
-            if (common::squaredDistance(existing.point, point) <=
+            if (common::geometryutil::squaredDistance(existing.point, point) <=
                 m_lengthEpsilon * m_lengthEpsilon) {
                 return;
             }
@@ -628,14 +628,14 @@ private:
         const Point& first = m_sites[0];
         std::size_t second_index = 1;
         while (second_index < m_sites.size() &&
-               common::squaredDistance(first, m_sites[second_index]) <=
+               common::geometryutil::squaredDistance(first, m_sites[second_index]) <=
                    m_lengthEpsilon * m_lengthEpsilon) {
             ++second_index;
         }
         if (second_index == m_sites.size()) return true;
         const Point direction = m_sites[second_index] - first;
         for (std::size_t index = second_index + 1; index < m_sites.size(); ++index) {
-            if (std::abs(common::cross(direction, m_sites[index] - first)) >
+            if (std::abs(common::geometryutil::cross(direction, m_sites[index] - first)) >
                 m_areaEpsilon) {
                 return false;
             }
@@ -657,9 +657,9 @@ private:
                           m_sites[third_index], center)) {
             return false;
         }
-        const double radius_squared = common::squaredDistance(m_sites[0], center);
+        const double radius_squared = common::geometryutil::squaredDistance(m_sites[0], center);
         for (const Point& site : m_sites) {
-            if (std::abs(common::squaredDistance(site, center) - radius_squared) >
+            if (std::abs(common::geometryutil::squaredDistance(site, center) - radius_squared) >
                 m_areaEpsilon) {
                 return false;
             }
@@ -676,8 +676,8 @@ private:
         }
         std::sort(ordered.begin(), ordered.end(), [&](std::size_t left,
                                                        std::size_t right) {
-            return common::dot(m_sites[left], direction) <
-                   common::dot(m_sites[right], direction);
+            return common::geometryutil::dot(m_sites[left], direction) <
+                   common::geometryutil::dot(m_sites[right], direction);
         });
         for (std::size_t index = 1; index < ordered.size(); ++index) {
             edgeFor(ordered[index - 1], ordered[index]);
@@ -737,7 +737,7 @@ private:
         }
         start = clampToBounds(origin + direction * minimum_parameter);
         end = clampToBounds(origin + direction * maximum_parameter);
-        return common::squaredDistance(start, end) >
+        return common::geometryutil::squaredDistance(start, end) >
                m_lengthEpsilon * m_lengthEpsilon;
     }
 
@@ -760,7 +760,7 @@ private:
             const EdgeVertex& vertex = edge.vertices.front();
             Point ray_direction = direction;
             const Point to_opposite = m_sites[vertex.opposite] - first_site;
-            if (common::dot(to_opposite, ray_direction) > 0.0) {
+            if (common::geometryutil::dot(to_opposite, ray_direction) > 0.0) {
                 ray_direction = ray_direction * -1.0;
             }
             if (!clipParameterRange(vertex.point, ray_direction, 0.0,
@@ -797,10 +797,10 @@ private:
             double closest_distance = std::numeric_limits<double>::infinity();
             for (const Point& site : m_sites) {
                 closest_distance =
-                    std::min(closest_distance, common::squaredDistance(site, corner));
+                    std::min(closest_distance, common::geometryutil::squaredDistance(site, corner));
             }
             for (std::size_t index = 0; index < m_sites.size(); ++index) {
-                if (std::abs(common::squaredDistance(m_sites[index], corner) -
+                if (std::abs(common::geometryutil::squaredDistance(m_sites[index], corner) -
                              closest_distance) <= m_areaEpsilon) {
                     vertices[index].push_back(corner);
                 }
@@ -822,13 +822,13 @@ private:
                           if (left_angle != right_angle) {
                               return left_angle < right_angle;
                           }
-                          return common::squaredDistance(left, m_sites[index]) <
-                                 common::squaredDistance(right, m_sites[index]);
+                          return common::geometryutil::squaredDistance(left, m_sites[index]) <
+                                 common::geometryutil::squaredDistance(right, m_sites[index]);
                       });
             cell_vertices.erase(
                 std::unique(cell_vertices.begin(), cell_vertices.end(),
                             [&](const Point& left, const Point& right) {
-                                return common::squaredDistance(left, right) <=
+                                return common::geometryutil::squaredDistance(left, right) <=
                                        m_lengthEpsilon * m_lengthEpsilon;
                             }),
                 cell_vertices.end());
@@ -839,7 +839,7 @@ private:
 };
 
 inline VoronoiDiagram fortuneVoronoiDiagram(const std::vector<Point>& sites,
-                                            const common::Aabb<double>& bounds) {
+                                            const common::geometry::Aabb<double>& bounds) {
     return FortuneVoronoiBuilder(sites, bounds).build();
 }
 
@@ -852,8 +852,8 @@ inline VoronoiDiagram fortuneVoronoiDiagram(const std::vector<Point>& sites,
 // floating-point predicates, not exact-arithmetic degeneracy handling.
 template <typename site_type, typename bounds_type>
 VoronoiDiagram voronoiDiagram(
-    const std::vector<common::BasePoint<site_type>>& sites,
-    const common::Aabb<bounds_type>& bounds) {
+    const std::vector<common::geometry::BasePoint<site_type>>& sites,
+    const common::geometry::Aabb<bounds_type>& bounds) {
     std::vector<Point> double_sites;
     double_sites.reserve(sites.size());
     for (const auto& site : sites) {
@@ -868,8 +868,8 @@ VoronoiDiagram voronoiDiagram(
 
 template <typename site_type, typename bounds_type>
 std::vector<VoronoiCell> halfPlaneVoronoiCells(
-    const std::vector<common::BasePoint<site_type>>& sites,
-    const common::Aabb<bounds_type>& bounds) {
+    const std::vector<common::geometry::BasePoint<site_type>>& sites,
+    const common::geometry::Aabb<bounds_type>& bounds) {
     return voronoiDiagram(sites, bounds).cells;
 }
 

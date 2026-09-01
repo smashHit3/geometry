@@ -1,10 +1,19 @@
-#include "common/CommonUtil.h"
+#include "common/geometryutil/CommonUtil.h"
 
 #include <gtest/gtest.h>
 
 #include <stdexcept>
 
 namespace common::unittest {
+
+using common::geometryutil::almostEqual;
+using common::geometryutil::almostLess;
+using common::geometryutil::almostLessOrEqual;
+using common::geometryutil::almostGreater;
+using common::geometryutil::almostGreaterOrEqual;
+using common::geometryutil::isNearZero;
+using common::geometryutil::snap;
+using common::geometryutil::roundToPrecision;
 
 TEST(CommonUtilTest, ComparesFloatingPointValuesWithRelativeTolerance) {
     EXPECT_TRUE(almostEqual(1.0, 1.0 + 1e-10));

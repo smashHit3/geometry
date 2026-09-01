@@ -1,7 +1,7 @@
-#ifndef COMMON_BVH_H
-#define COMMON_BVH_H
+#ifndef COMMON_BVH_BVH_H
+#define COMMON_BVH_BVH_H
 
-#include "common/Aabb.h"
+#include "common/geometry/Aabb.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -9,12 +9,17 @@
 #include <utility>
 #include <vector>
 
-namespace common {
+namespace common::bvh {
 
+// BVH stands for Bounding Volume Hierarchy.
+// It organizes the bounding boxes (AABBs) of a set of objects into a
+// binary tree: each node stores the merged bounds of its subtree, and
+// queries prune top-down to quickly find entries intersecting a given
+// range. Best suited for static scenes that are built once and only read.
 template <typename id_type, typename coordinate_type>
 class Bvh {
 public:
-    using Bounds = Aabb<coordinate_type>;
+    using Bounds = common::geometry::Aabb<coordinate_type>;
 
     struct Entry {
         id_type id;
@@ -117,6 +122,6 @@ private:
     std::vector<Node> m_nodes;
 };
 
-} // namespace common
+} // namespace common::bvh
 
-#endif // COMMON_BVH_H
+#endif // COMMON_BVH_BVH_H

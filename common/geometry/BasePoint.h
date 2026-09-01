@@ -1,9 +1,9 @@
-#ifndef COMMON_BASE_POINT_H
-#define COMMON_BASE_POINT_H
+#ifndef COMMON_GEOMETRY_BASEPOINT_H
+#define COMMON_GEOMETRY_BASEPOINT_H
 
 #include <type_traits>
 
-namespace common {
+namespace common::geometry {
 
 template <typename point_type,
           std::enable_if_t<std::is_arithmetic_v<point_type>, int> = 0>
@@ -43,6 +43,6 @@ private:
     point_type m_y = 0;
 };
 
-} // namespace common
+} // namespace common::geometry
 
-#endif // COMMON_BASE_POINT_H
+#endif // COMMON_GEOMETRY_BASEPOINT_H

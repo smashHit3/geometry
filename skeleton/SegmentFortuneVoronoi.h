@@ -1,8 +1,8 @@
 #ifndef SKELETON_SEGMENT_FORTUNE_VORONOI_H
 #define SKELETON_SEGMENT_FORTUNE_VORONOI_H
 
-#include "common/Aabb.h"
-#include "common/BasePointUtil.h"
+#include "common/geometry/Aabb.h"
+#include "common/geometryutil/BasePointUtil.h"
 #include "skeleton/Types.h"
 
 #include <algorithm>
@@ -102,10 +102,10 @@ struct PolygonSweepDiagram {
 class SegmentVoronoiBuilder {
 public:
     SegmentVoronoiBuilder(std::vector<Segment> sites,
-                          common::Aabb<double> bounds,
+                          common::geometry::Aabb<double> bounds,
                           double maximumError);
     SegmentVoronoiBuilder(std::vector<Point> vertices,
-                          common::Aabb<double> bounds,
+                          common::geometry::Aabb<double> bounds,
                           double maximumError, PolygonSweepTag);
 
     SegmentVoronoiDiagram build();
@@ -505,7 +505,7 @@ private:
 
     std::vector<Segment> m_originalSites;
     std::vector<Point> m_polygonVertices;
-    common::Aabb<double> m_inputBounds;
+    common::geometry::Aabb<double> m_inputBounds;
     std::vector<LocalSegment> m_localSites;
     std::vector<Vector> m_eventPoints;
     std::vector<Feature> m_features;
@@ -2951,7 +2951,7 @@ inline PolygonSweepDiagram SegmentVoronoiBuilder::buildPolygonDiagram() {
 }
 
 inline SegmentVoronoiBuilder::SegmentVoronoiBuilder(
-    std::vector<Segment> sites, common::Aabb<double> bounds,
+    std::vector<Segment> sites, common::geometry::Aabb<double> bounds,
     double maximumError)
     : m_originalSites(std::move(sites)), m_inputBounds(bounds) {
     validateScalars(maximumError);
@@ -2967,7 +2967,7 @@ inline SegmentVoronoiBuilder::SegmentVoronoiBuilder(
 }
 
 inline SegmentVoronoiBuilder::SegmentVoronoiBuilder(
-    std::vector<Point> vertices, common::Aabb<double> bounds,
+    std::vector<Point> vertices, common::geometry::Aabb<double> bounds,
     double maximumError, PolygonSweepTag)
     : m_polygonVertices(std::move(vertices)),
       m_inputBounds(bounds), m_polygonMode(true) {
@@ -2998,7 +2998,7 @@ inline SegmentVoronoiBuilder::SegmentVoronoiBuilder(
 template <typename coordinate_type, typename bounds_type>
 SegmentVoronoiDiagram segmentVoronoiDiagram(
     const std::vector<BaseSegment<coordinate_type>>& sites,
-    const common::Aabb<bounds_type>& bounds, double maximumError = 0.0) {
+    const common::geometry::Aabb<bounds_type>& bounds, double maximumError = 0.0) {
     std::vector<Segment> doubleSites;
     doubleSites.reserve(sites.size());
     for (const BaseSegment<coordinate_type>& site : sites) {
@@ -3041,7 +3041,7 @@ SegmentVoronoiDiagram segmentVoronoiDiagram(
 template <typename coordinate_type, typename bounds_type>
 SegmentVoronoiDiagram voronoiDiagram(
     const std::vector<BaseSegment<coordinate_type>>& sites,
-    const common::Aabb<bounds_type>& bounds, double maximumError = 0.0) {
+    const common::geometry::Aabb<bounds_type>& bounds, double maximumError = 0.0) {
     return segmentVoronoiDiagram(sites, bounds, maximumError);
 }
 

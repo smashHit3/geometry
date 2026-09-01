@@ -1,11 +1,11 @@
-#ifndef COMMON_AABB_H
-#define COMMON_AABB_H
+#ifndef COMMON_GEOMETRY_AABB_H
+#define COMMON_GEOMETRY_AABB_H
 
 #include <algorithm>
 #include <stdexcept>
 #include <type_traits>
 
-namespace common {
+namespace common::geometry {
 
 // Axis-aligned bounding box represented by its minimum and maximum coordinates.
 template <typename coordinate_type,
@@ -54,6 +54,6 @@ private:
     coordinate_type m_max_y;
 };
 
-} // namespace common
+} // namespace common::geometry
 
-#endif // COMMON_AABB_H
+#endif // COMMON_GEOMETRY_AABB_H

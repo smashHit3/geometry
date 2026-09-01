@@ -1,4 +1,4 @@
-#include "common/BasePointUtil.h"
+#include "common/geometryutil/BasePointUtil.h"
 
 #include <gtest/gtest.h>
 
@@ -8,6 +8,20 @@
 #include <type_traits>
 
 namespace common::unittest {
+
+using common::geometry::BasePoint;
+using common::geometryutil::add;
+using common::geometryutil::subtract;
+using common::geometryutil::multiply;
+using common::geometryutil::divide;
+using common::geometryutil::dot;
+using common::geometryutil::cross;
+using common::geometryutil::squaredLength;
+using common::geometryutil::length;
+using common::geometryutil::squaredDistance;
+using common::geometryutil::distance;
+using common::geometryutil::normalize;
+using common::geometryutil::rotate;
 
 TEST(BasePointUtilTest, AddsAndSubtractsPoints) {
     const BasePoint<int> left{3, 4};

@@ -1,7 +1,7 @@
-#include "common/Aabb.h"
-#include "common/Bvh.h"
-#include "common/RTree.h"
-#include "common/UniformGrid.h"
+#include "common/geometry/Aabb.h"
+#include "common/bvh/Bvh.h"
+#include "common/rtree/RTree.h"
+#include "common/uniformgrid/UniformGrid.h"
 
 #include <gtest/gtest.h>
 
@@ -10,9 +10,14 @@
 #include <vector>
 
 namespace common::unittest {
+
+using common::bvh::Bvh;
+using common::rtree::RTree;
+using common::uniformgrid::UniformGrid;
+
 namespace {
 
-using Bounds = Aabb<double>;
+using Bounds = common::geometry::Aabb<double>;
 
 std::vector<int> sorted(std::vector<int> ids) {
     std::sort(ids.begin(), ids.end());

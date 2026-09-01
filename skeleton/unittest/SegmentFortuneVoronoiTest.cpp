@@ -15,11 +15,11 @@ namespace {
 
 double squaredDistanceToSegment(const Point& point, const Segment& segment) {
     const Point direction = segment.end - segment.start;
-    const double lengthSquared = common::squaredLength(direction);
+    const double lengthSquared = common::geometryutil::squaredLength(direction);
     const double parameter =
-        std::clamp(common::dot(point - segment.start, direction) / lengthSquared,
+        std::clamp(common::geometryutil::dot(point - segment.start, direction) / lengthSquared,
                    0.0, 1.0);
-    return common::squaredDistance(
+    return common::geometryutil::squaredDistance(
         point, segment.start + direction * parameter);
 }
 
@@ -32,7 +32,7 @@ TEST(SegmentFortuneVoronoiTest, SplitsBoundsBetweenParallelSegments) {
     };
 
     const auto diagram = voronoiDiagram(
-        sites, common::Aabb<int>{0, 0, 10, 10});
+        sites, common::geometry::Aabb<int>{0, 0, 10, 10});
 
     ASSERT_EQ(diagram.cells.size(), sites.size());
     ASSERT_FALSE(diagram.edges.empty());
@@ -57,7 +57,7 @@ TEST(SegmentFortuneVoronoiTest, DiscretizesParabolicBisectors) {
     };
 
     const auto diagram = segmentVoronoiDiagram(
-        sites, common::Aabb<double>{0.0, 0.0, 10.0, 10.0}, 1e-4);
+        sites, common::geometry::Aabb<double>{0.0, 0.0, 10.0, 10.0}, 1e-4);
 
     ASSERT_EQ(diagram.cells.size(), sites.size());
     ASSERT_FALSE(diagram.edges.empty());
@@ -90,7 +90,7 @@ TEST(SegmentFortuneVoronoiTest, RecordsIncidentEdgesForEachCell) {
     };
 
     const auto diagram =
-        segmentVoronoiDiagram(sites, common::Aabb<int>{0, 0, 10, 10});
+        segmentVoronoiDiagram(sites, common::geometry::Aabb<int>{0, 0, 10, 10});
 
     ASSERT_EQ(diagram.cells.size(), sites.size());
     ASSERT_FALSE(diagram.edges.empty());
@@ -121,7 +121,7 @@ TEST(SegmentFortuneVoronoiTest, RejectsDegenerateAndIntersectingSites) {
     EXPECT_THROW(
         segmentVoronoiDiagram(
             std::vector<BaseSegment<int>>{{{1, 1}, {1, 1}}},
-            common::Aabb<int>{0, 0, 10, 10}),
+            common::geometry::Aabb<int>{0, 0, 10, 10}),
         std::invalid_argument);
 
     EXPECT_THROW(
@@ -130,7 +130,7 @@ TEST(SegmentFortuneVoronoiTest, RejectsDegenerateAndIntersectingSites) {
                 {{1, 1}, {9, 9}},
                 {{1, 9}, {9, 1}},
             },
-            common::Aabb<int>{0, 0, 10, 10}),
+            common::geometry::Aabb<int>{0, 0, 10, 10}),
         std::invalid_argument);
 
     EXPECT_THROW(
@@ -139,13 +139,13 @@ TEST(SegmentFortuneVoronoiTest, RejectsDegenerateAndIntersectingSites) {
                 {{1, 5}, {8, 5}},
                 {{4, 5}, {8, 5}},
             },
-            common::Aabb<int>{0, 0, 10, 10}),
+            common::geometry::Aabb<int>{0, 0, 10, 10}),
         std::invalid_argument);
 
     EXPECT_THROW(
         segmentVoronoiDiagram(
             std::vector<BaseSegment<int>>{{{1, 1}, {2, 2}}},
-            common::Aabb<int>{0, 0, 10, 10}, -1.0),
+            common::geometry::Aabb<int>{0, 0, 10, 10}, -1.0),
         std::invalid_argument);
 
 }
@@ -158,7 +158,7 @@ TEST(SegmentFortuneVoronoiTest,
     };
 
     const auto diagram =
-        segmentVoronoiDiagram(sites, common::Aabb<int>{-1, -2, 6, 3});
+        segmentVoronoiDiagram(sites, common::geometry::Aabb<int>{-1, -2, 6, 3});
 
     ASSERT_EQ(diagram.cells.size(), sites.size());
     ASSERT_FALSE(diagram.edges.empty());
@@ -176,13 +176,13 @@ TEST(SegmentFortuneVoronoiTest,
 
 TEST(SegmentFortuneVoronoiTest, HandlesEmptyAndSingleSiteInputs) {
     const auto empty = segmentVoronoiDiagram(
-        std::vector<BaseSegment<int>>{}, common::Aabb<int>{0, 0, 10, 10});
+        std::vector<BaseSegment<int>>{}, common::geometry::Aabb<int>{0, 0, 10, 10});
     EXPECT_TRUE(empty.edges.empty());
     EXPECT_TRUE(empty.cells.empty());
 
     const std::vector<BaseSegment<int>> sites{{{1, 2}, {8, 7}}};
     const auto single =
-        segmentVoronoiDiagram(sites, common::Aabb<int>{0, 0, 10, 10});
+        segmentVoronoiDiagram(sites, common::geometry::Aabb<int>{0, 0, 10, 10});
     EXPECT_TRUE(single.edges.empty());
     ASSERT_EQ(single.cells.size(), 1U);
     EXPECT_TRUE(single.cells.front().edges.empty());
@@ -196,7 +196,7 @@ TEST(SegmentFortuneVoronoiTest, RetainsNarrowVisibleBisectors) {
     };
 
     const auto diagram =
-        segmentVoronoiDiagram(sites, common::Aabb<int>{0, 0, 100, 100});
+        segmentVoronoiDiagram(sites, common::geometry::Aabb<int>{0, 0, 100, 100});
 
     EXPECT_TRUE(std::any_of(
         diagram.edges.begin(), diagram.edges.end(),
@@ -220,7 +220,7 @@ TEST(SegmentFortuneVoronoiTest,
     };
 
     const auto diagram = segmentVoronoiDiagram(
-        sites, common::Aabb<double>{-4.0, -4.0, 17.0, 17.0}, 0.05);
+        sites, common::geometry::Aabb<double>{-4.0, -4.0, 17.0, 17.0}, 0.05);
 
     ASSERT_EQ(diagram.cells.size(), sites.size());
     ASSERT_FALSE(diagram.edges.empty());
@@ -248,7 +248,7 @@ TEST(SegmentFortuneVoronoiTest, HandlesOverlappingSiteAabbs) {
         {{0.0, 8.0}, {2.0, 10.0}},
         {{8.0, 0.0}, {10.0, 2.0}},
     };
-    const common::Aabb<double> bounds{-2.0, -2.0, 12.0, 12.0};
+    const common::geometry::Aabb<double> bounds{-2.0, -2.0, 12.0, 12.0};
 
     const auto diagram = segmentVoronoiDiagram(sites, bounds, 1e-4);
 
@@ -285,7 +285,7 @@ TEST(SegmentFortuneVoronoiTest, RetainsNearRepeatedPssCircleEvent) {
     };
 
     const auto diagram = segmentVoronoiDiagram(
-        sites, common::Aabb<double>{0.0, 0.0, 100.0, 100.0}, 1e-4);
+        sites, common::geometry::Aabb<double>{0.0, 0.0, 100.0, 100.0}, 1e-4);
 
     ASSERT_EQ(diagram.cells.size(), sites.size());
     for (const SegmentVoronoiEdge& edge : diagram.edges) {
@@ -312,7 +312,7 @@ TEST(SegmentFortuneVoronoiTest, HandlesLargeCoordinateScale) {
     };
 
     const auto diagram = segmentVoronoiDiagram(
-        sites, common::Aabb<double>{0.0, 0.0, 10.0 * scale, 10.0 * scale},
+        sites, common::geometry::Aabb<double>{0.0, 0.0, 10.0 * scale, 10.0 * scale},
         100.0);
 
     ASSERT_FALSE(diagram.edges.empty());
@@ -338,7 +338,7 @@ TEST(SegmentFortuneVoronoiTest, NormalizesTinyDiagramsByTheirActualRadius) {
 
     const auto diagram = segmentVoronoiDiagram(
         sites,
-        common::Aabb<double>{0.0, 0.0, 10.0 * scale, 10.0 * scale},
+        common::geometry::Aabb<double>{0.0, 0.0, 10.0 * scale, 10.0 * scale},
         1e-205);
 
     ASSERT_FALSE(diagram.edges.empty());
@@ -365,7 +365,7 @@ TEST(SegmentFortuneVoronoiTest, NormalizesFiniteDoubleExtremesSafely) {
     };
 
     const auto diagram = segmentVoronoiDiagram(
-        sites, common::Aabb<double>{-extent, -extent, extent, extent});
+        sites, common::geometry::Aabb<double>{-extent, -extent, extent, extent});
 
     ASSERT_FALSE(diagram.edges.empty());
     for (const SegmentVoronoiEdge& edge : diagram.edges) {
@@ -420,7 +420,7 @@ TEST(SegmentFortuneVoronoiTest,
     }
 
     const auto diagram = segmentVoronoiDiagram(
-        sites, common::Aabb<double>{-5.0, -5.0, 45.0, 65.0}, 0.05);
+        sites, common::geometry::Aabb<double>{-5.0, -5.0, 45.0, 65.0}, 0.05);
 
     EXPECT_EQ(diagram.cells.size(), sites.size());
     EXPECT_FALSE(diagram.edges.empty());
@@ -438,10 +438,10 @@ TEST(SegmentFortuneVoronoiTest, IsInvariantUnderLargeTranslation) {
     };
 
     const auto original =
-        segmentVoronoiDiagram(sites, common::Aabb<double>{0.0, 0.0, 10.0, 10.0});
+        segmentVoronoiDiagram(sites, common::geometry::Aabb<double>{0.0, 0.0, 10.0, 10.0});
     const auto shifted = segmentVoronoiDiagram(
         translated,
-        common::Aabb<double>{offset, offset, offset + 10.0, offset + 10.0});
+        common::geometry::Aabb<double>{offset, offset, offset + 10.0, offset + 10.0});
 
     EXPECT_EQ(shifted.edges.size(), original.edges.size());
     for (const SegmentVoronoiEdge& edge : shifted.edges) {
@@ -461,7 +461,7 @@ TEST(SegmentFortuneVoronoiTest, RejectsSharedEndpoints) {
                 {{0, 0}, {10, 0}},
                 {{0, 0}, {0, 10}},
             },
-            common::Aabb<int>{-5, -5, 15, 15}),
+            common::geometry::Aabb<int>{-5, -5, 15, 15}),
         std::invalid_argument);
 }
 
@@ -472,7 +472,7 @@ TEST(SegmentFortuneVoronoiTest, RejectsCoordinatesThatLosePrecision) {
             std::vector<BaseSegment<std::int64_t>>{
                 {{exactLimit, 0}, {exactLimit + 1, 1}},
             },
-            common::Aabb<std::int64_t>{0, 0, exactLimit + 2, 10}),
+            common::geometry::Aabb<std::int64_t>{0, 0, exactLimit + 2, 10}),
         std::invalid_argument);
 }
 
@@ -487,7 +487,7 @@ TEST(SegmentFortuneVoronoiTest, BuildsManySitesWithLinearOutputComplexity) {
     }
 
     const auto diagram = segmentVoronoiDiagram(
-        sites, common::Aabb<double>{-10.0, -2.0, 20.0, 962.0}, 0.1);
+        sites, common::geometry::Aabb<double>{-10.0, -2.0, 20.0, 962.0}, 0.1);
 
     ASSERT_EQ(diagram.cells.size(), sites.size());
     EXPECT_GT(diagram.edges.size(), sites.size());

@@ -1,7 +1,7 @@
 #ifndef SKELETON_POLYGON_FORTUNE_VORONOI_H
 #define SKELETON_POLYGON_FORTUNE_VORONOI_H
 
-#include "common/Aabb.h"
+#include "common/geometry/Aabb.h"
 #include "skeleton/SegmentFortuneVoronoi.h"
 #include "skeleton/Types.h"
 
@@ -74,7 +74,7 @@ public:
     }
 
     PolygonBoundaryIndex(const std::vector<Point>& vertices,
-                         common::Aabb<double> bounds,
+                         common::geometry::Aabb<double> bounds,
                          double maximumError)
         : m_publicBounds(bounds) {
         Real minimumX = bounds.minX();
@@ -280,7 +280,7 @@ private:
     std::vector<Vector> m_vertices;
     std::vector<std::size_t> m_order;
     std::vector<Node> m_nodes;
-    common::Aabb<double> m_publicBounds;
+    common::geometry::Aabb<double> m_publicBounds;
     Vector m_origin;
     Bounds m_bounds;
     Real m_scale = 1.0L;
@@ -760,7 +760,7 @@ inline bool adjacentPolygonEdges(const PolygonFeatureRef& first,
 inline PolygonVoronoiDiagram publicPolygonDiagram(
     PolygonSweepDiagram sweepDiagram,
     const std::vector<Point>& vertices,
-    common::Aabb<double> bounds, double maximumError) {
+    common::geometry::Aabb<double> bounds, double maximumError) {
     PolygonBoundaryIndex index(vertices, bounds, maximumError);
     PolygonVoronoiDiagram result;
     result.edges.reserve(sweepDiagram.edges.size());
@@ -1262,7 +1262,7 @@ inline PolygonVoronoiDiagram publicPolygonDiagram(
 inline PolygonVoronoiDiagram retainPolygonInterior(
     PolygonVoronoiDiagram diagram,
     const std::vector<Point>& vertices,
-    common::Aabb<double> bounds) {
+    common::geometry::Aabb<double> bounds) {
     PolygonBoundaryIndex index(vertices, bounds, 0.0);
     std::vector<PolygonInteriorLocator::Query> queries;
     std::vector<std::vector<std::size_t>> queryIndexes(
@@ -1326,16 +1326,16 @@ inline PolygonVoronoiDiagram retainPolygonInterior(
 // polyline work is output-sensitive.
 template <typename coordinate_type, typename bounds_type>
 PolygonVoronoiDiagram polygonBoundaryVoronoiDiagram(
-    const std::vector<common::BasePoint<coordinate_type>>& vertices,
-    const common::Aabb<bounds_type>& bounds, double maximumError = 0.0) {
+    const std::vector<common::geometry::BasePoint<coordinate_type>>& vertices,
+    const common::geometry::Aabb<bounds_type>& bounds, double maximumError = 0.0) {
     std::vector<Point> doubleVertices;
     doubleVertices.reserve(vertices.size());
-    for (const common::BasePoint<coordinate_type>& vertex : vertices) {
+    for (const common::geometry::BasePoint<coordinate_type>& vertex : vertices) {
         doubleVertices.emplace_back(
             detail::checkedSegmentVoronoiCoordinate(vertex.x()),
             detail::checkedSegmentVoronoiCoordinate(vertex.y()));
     }
-    const common::Aabb<double> doubleBounds{
+    const common::geometry::Aabb<double> doubleBounds{
         detail::checkedSegmentVoronoiCoordinate(bounds.minX()),
         detail::checkedSegmentVoronoiCoordinate(bounds.minY()),
         detail::checkedSegmentVoronoiCoordinate(bounds.maxX()),
@@ -1356,7 +1356,7 @@ PolygonVoronoiDiagram polygonBoundaryVoronoiDiagram(
 // rather than ray-casting against every polygon edge for every sample.
 template <typename coordinate_type>
 PolygonVoronoiDiagram polygonMedialAxis(
-    const std::vector<common::BasePoint<coordinate_type>>& vertices,
+    const std::vector<common::geometry::BasePoint<coordinate_type>>& vertices,
     double maximumError = 0.0) {
     if (vertices.size() < 3U) {
         throw std::invalid_argument(
@@ -1364,7 +1364,7 @@ PolygonVoronoiDiagram polygonMedialAxis(
     }
     std::vector<Point> doubleVertices;
     doubleVertices.reserve(vertices.size());
-    for (const common::BasePoint<coordinate_type>& vertex : vertices) {
+    for (const common::geometry::BasePoint<coordinate_type>& vertex : vertices) {
         doubleVertices.emplace_back(
             detail::checkedSegmentVoronoiCoordinate(vertex.x()),
             detail::checkedSegmentVoronoiCoordinate(vertex.y()));
@@ -1380,7 +1380,7 @@ PolygonVoronoiDiagram polygonMedialAxis(
         maximumX = std::max(maximumX, vertex.x());
         maximumY = std::max(maximumY, vertex.y());
     }
-    const common::Aabb<double> bounds{
+    const common::geometry::Aabb<double> bounds{
         minimumX, minimumY, maximumX, maximumY};
     const auto sweepDiagram =
         detail::SegmentVoronoiBuilder(

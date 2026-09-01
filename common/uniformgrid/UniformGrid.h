@@ -1,7 +1,7 @@
-#ifndef COMMON_UNIFORM_GRID_H
-#define COMMON_UNIFORM_GRID_H
+#ifndef COMMON_UNIFORMGRID_UNIFORMGRID_H
+#define COMMON_UNIFORMGRID_UNIFORMGRID_H
 
-#include "common/Aabb.h"
+#include "common/geometry/Aabb.h"
 
 #include <cmath>
 #include <functional>
@@ -10,13 +10,13 @@
 #include <unordered_set>
 #include <vector>
 
-namespace common {
+namespace common::uniformgrid {
 
 template <typename id_type, typename coordinate_type,
           typename hash_type = std::hash<id_type>>
 class UniformGrid {
 public:
-    using Bounds = Aabb<coordinate_type>;
+    using Bounds = common::geometry::Aabb<coordinate_type>;
 
     explicit UniformGrid(coordinate_type cell_size)
         : m_cell_size(cell_size) {
@@ -112,6 +112,6 @@ private:
     std::unordered_map<id_type, Bounds, hash_type> m_bounds_by_id;
 };
 
-} // namespace common
+} // namespace common::uniformgrid
 
-#endif // COMMON_UNIFORM_GRID_H
+#endif // COMMON_UNIFORMGRID_UNIFORMGRID_H

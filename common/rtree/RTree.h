@@ -1,7 +1,7 @@
-#ifndef COMMON_R_TREE_H
-#define COMMON_R_TREE_H
+#ifndef COMMON_RTREE_RTREE_H
+#define COMMON_RTREE_RTREE_H
 
-#include "common/Aabb.h"
+#include "common/geometry/Aabb.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -10,12 +10,12 @@
 #include <utility>
 #include <vector>
 
-namespace common {
+namespace common::rtree {
 
 template <typename id_type, typename coordinate_type>
 class RTree {
 public:
-    using Bounds = Aabb<coordinate_type>;
+    using Bounds = common::geometry::Aabb<coordinate_type>;
 
     struct Entry {
         id_type id;
@@ -236,6 +236,6 @@ private:
     std::unique_ptr<Node> m_root;
 };
 
-} // namespace common
+} // namespace common::rtree
 
-#endif // COMMON_R_TREE_H
+#endif // COMMON_RTREE_RTREE_H

@@ -11,6 +11,11 @@ if(BUILD_TESTING)
         test_geometry_common_base_point
         PRIVATE
             geometry_common
+            geometry_common_geometry
+            geometry_common_geometryutil
+            geometry_common_rtree
+            geometry_common_bvh
+            geometry_common_uniformgrid
             GTest::gtest
     )
 

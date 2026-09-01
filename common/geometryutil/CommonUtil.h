@@ -1,12 +1,12 @@
-#ifndef COMMON_COMMON_UTIL_H
-#define COMMON_COMMON_UTIL_H
+#ifndef COMMON_GEOMETRYUTIL_COMMONUTIL_H
+#define COMMON_GEOMETRYUTIL_COMMONUTIL_H
 
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <type_traits>
 
-namespace common {
+namespace common::geometryutil {
 
 inline constexpr double DEFAULT_TOLERANCE = 1e-9;
 
@@ -117,6 +117,6 @@ auto roundToPrecision(value_type value, int decimal_places)
     return std::round(static_cast<result_type>(value) * scale) / scale;
 }
 
-} // namespace common
+} // namespace common::geometryutil
 
-#endif // COMMON_COMMON_UTIL_H
+#endif // COMMON_GEOMETRYUTIL_COMMONUTIL_H

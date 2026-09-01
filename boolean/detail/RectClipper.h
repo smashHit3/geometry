@@ -1,8 +1,8 @@
 #ifndef BOOLEAN_DETAIL_RECT_CLIPPER_H
 #define BOOLEAN_DETAIL_RECT_CLIPPER_H
 
-#include "common/Aabb.h"
-#include "common/BasePoint.h"
+#include "common/geometry/Aabb.h"
+#include "common/geometry/BasePoint.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -10,7 +10,7 @@
 
 namespace boolean {
 
-using IntegerPoint = common::BasePoint<std::int64_t>;
+using IntegerPoint = common::geometry::BasePoint<std::int64_t>;
 using Path = std::vector<IntegerPoint>;
 using Paths = std::vector<Path>;
 
@@ -21,7 +21,7 @@ using Paths = std::vector<Path>;
 // vertex is connected to the first vertex during clipping.
 class RectClipper {
 public:
-    using Rectangle = common::Aabb<std::int64_t>;
+    using Rectangle = common::geometry::Aabb<std::int64_t>;
 
     explicit RectClipper(Rectangle rectangle)
         : m_rectangle(rectangle) {}
