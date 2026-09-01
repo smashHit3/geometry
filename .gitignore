@@ -13,5 +13,5 @@ Makefile
 .vscode/
 .idea/
 
-# Local problem-solving exercises
-/problems/
+# Vendored Boost.Polygon sources
+/boost-polygon/

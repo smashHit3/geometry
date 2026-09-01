@@ -1,0 +1,32 @@
+add_executable(luogu_p1429_closest_pair p1429_closest_pair/main.cpp)
+target_compile_features(luogu_p1429_closest_pair PRIVATE cxx_std_17)
+
+add_executable(luogu_p1429_closest_pair_bvh p1429_closest_pair/bvh.cpp)
+target_compile_features(luogu_p1429_closest_pair_bvh PRIVATE cxx_std_17)
+
+add_executable(luogu_p1429_closest_pair_kd_tree p1429_closest_pair/kd_tree.cpp)
+target_compile_features(luogu_p1429_closest_pair_kd_tree PRIVATE cxx_std_17)
+
+add_executable(luogu_p1429_closest_pair_r_tree p1429_closest_pair/r_tree.cpp)
+target_compile_features(luogu_p1429_closest_pair_r_tree PRIVATE cxx_std_17)
+
+add_executable(luogu_p2093_jzpfar p2093_jzpfar/main.cpp)
+target_compile_features(luogu_p2093_jzpfar PRIVATE cxx_std_17)
+
+add_executable(luogu_p2093_jzpfar_kd_tree p2093_jzpfar/kd_tree.cpp)
+target_compile_features(luogu_p2093_jzpfar PRIVATE cxx_std_17)
+
+add_executable(luogu_p2093_jzpfar_bvh p2093_jzpfar/bvh.cpp)
+target_compile_features(luogu_p2093_jzpfar PRIVATE cxx_std_17)
+
+add_executable(luogu_p2093_jzpfar_r_tree p2093_jzpfar/bvh.cpp)
+target_compile_features(luogu_p2093_jzpfar PRIVATE cxx_std_17)
+
+add_executable(luogu_p2163_gardeners_troubles p2163_gardeners_troubles/main.cpp)
+target_compile_features(luogu_p2163_gardeners_troubles PRIVATE cxx_std_17)
+
+add_executable(luogu_p4148_simple_problem p4148_simple_problem/main.cpp)
+target_compile_features(luogu_p4148_simple_problem PRIVATE cxx_std_17)
+
+add_executable(codeforces_cf102482_problem_g_skipping_the_exam cf102482_problem_g_skipping_the_exam/main.cpp)
+target_compile_features(codeforces_cf102482_problem_g_skipping_the_exam PRIVATE cxx_std_17)
