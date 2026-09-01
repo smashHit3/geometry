@@ -54,15 +54,15 @@ private:
 
     struct Arc {
         std::size_t site_index; // The index of the site that generates this arc
-        Arc* prev; // Pointer to the previous arc in the beach line
-        Arc* next; // Pointer to the next arc in the beach line
-        Arc* left_child; // Pointer to the left child in the binary search tree
-        Arc* right_child; // Pointer to the right child in the binary search tree
-        Arc* parent; // Pointer to the parent in the binary search tree
+        Arc* prev = nullptr; // Pointer to the previous arc in the beach line
+        Arc* next = nullptr; // Pointer to the next arc in the beach line
+        Arc* left_child = nullptr; // Pointer to the left child in the binary search tree
+        Arc* right_child = nullptr; // Pointer to the right child in the binary search tree
+        Arc* parent = nullptr; // Pointer to the parent in the binary search tree
         int height = 1; // The height of the arc in the binary search tree
-        EdgeRecord* edge_to_next; // Pointer to the edge record that connects this arc to the next arc
+        EdgeRecord* edge_to_next = nullptr; // Pointer to the edge record that connects this arc to the next arc
 
-        Event* circle_event; // Pointer to the circle event associated with this arc (if any)
+        Event* circle_event = nullptr; // Pointer to the circle event associated with this arc (if any)
     };
     
     enum class EventType {
@@ -385,7 +385,8 @@ void VoronoiEngine::addEdgeVertex(EdgeRecord* edge_record, const Point& vertex_p
 
 VoronoiEngine::Arc* VoronoiEngine::makeArc(std::size_t site_index) 
 {
-    m_arcs.emplace_back(std::make_unique<Arc>(site_index, nullptr, nullptr, nullptr, nullptr, 1, nullptr, nullptr));
+    m_arcs.emplace_back(std::make_unique<Arc>());
+    m_arcs.back()->site_index = site_index;
     return m_arcs.back().get();
 }
 
