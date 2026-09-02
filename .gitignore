@@ -12,6 +12,3 @@ Makefile
 # IDE files
 .vscode/
 .idea/
-
-# Vendored Boost.Polygon sources
-/boost-polygon/
