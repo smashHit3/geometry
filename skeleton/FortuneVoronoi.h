@@ -503,7 +503,7 @@ private:
         const Point& first = m_sweepSites[middle->previous->site];
         const Point& second = m_sweepSites[middle->site];
         const Point& third = m_sweepSites[middle->next->site];
-        if (orientation(first, second, third) >= -m_areaEpsilon) return;
+        if (orientation(first, second, third) >= -m_areaEpsilon) return; // why
         if (std::abs(orientation(m_sites[middle->previous->site],
                                  m_sites[middle->site],
                                  m_sites[middle->next->site])) <= m_areaEpsilon) {
