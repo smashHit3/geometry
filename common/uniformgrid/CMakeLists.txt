@@ -2,3 +2,5 @@ add_library(geometry_common_uniformgrid INTERFACE)
 target_include_directories(geometry_common_uniformgrid INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 target_link_libraries(geometry_common_uniformgrid INTERFACE geometry_common)
 target_compile_features(geometry_common_uniformgrid INTERFACE cxx_std_17)
+
+add_subdirectory(unittest)

@@ -7,21 +7,9 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace common::unittest {
+namespace common::geometryutil::unittest {
 
 using common::geometry::BasePoint;
-using common::geometryutil::add;
-using common::geometryutil::subtract;
-using common::geometryutil::multiply;
-using common::geometryutil::divide;
-using common::geometryutil::dot;
-using common::geometryutil::cross;
-using common::geometryutil::squaredLength;
-using common::geometryutil::length;
-using common::geometryutil::squaredDistance;
-using common::geometryutil::distance;
-using common::geometryutil::normalize;
-using common::geometryutil::rotate;
 
 TEST(BasePointUtilTest, AddsAndSubtractsPoints) {
     const BasePoint<int> left{3, 4};
@@ -119,7 +107,9 @@ TEST(BasePointUtilTest, PromotesIntegralCalculationsToAvoidOverflow) {
 
     static_assert(std::is_same_v<std::remove_cv_t<decltype(sum)>,
                                  BasePoint<long double>>);
-    EXPECT_EQ(sum.x(), static_cast<long double>(std::numeric_limits<int>::max()) + 1);
+    EXPECT_EQ(
+        sum.x(),
+        static_cast<long double>(std::numeric_limits<int>::max()) + 1);
     EXPECT_EQ(product.x(),
               static_cast<long double>(std::numeric_limits<int>::max()) * 2);
 }
@@ -141,4 +131,4 @@ TEST(BasePointUtilTest, RotatesPointsCounterclockwise) {
     EXPECT_NEAR(rotated.y(), 1.0, 1e-12);
 }
 
-} // namespace common::unittest
+} // namespace common::geometryutil::unittest

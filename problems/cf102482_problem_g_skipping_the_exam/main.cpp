@@ -123,6 +123,7 @@ private:
     void processEventQueue();
     void processSiteEvent(Event* event);
     void processCircleEvent(Event* event);
+    void scheduleCircleEvent(Arc* arc, double sweep_line_y);
 
     std::pair<std::size_t, std::size_t> makeOrderedPair(std::size_t first, std::size_t second) const;
     Event* makeEvent(EventType type, const Point& point, std::size_t site_index);
@@ -341,11 +342,21 @@ void VoronoiEngine::processEventQueue() {
 }
 
 void VoronoiEngine::processSiteEvent(Event* event) {
-    // Implementation for processing a site event
+    if (m_beach_line_root == nullptr) {
+        m_beach_line_root = makeArc(event->site_index);
+        m_first_arc = m_beach_line_root;
+        m_last_arc = m_beach_line_root;
+        return;
+    }
+    Arc* spilt = findArcAbove(event->x, event->y);
 }
 
 void VoronoiEngine::processCircleEvent(Event* event) {
     // Implementation for processing a circle event
+}
+
+void VoronoiEngine::scheduleCircleEvent(Arc* arc, double sweep_line_y) {
+    // Implementation for scheduling a circle event for the given arc
 }
 
 std::pair<std::size_t, std::size_t> VoronoiEngine::makeOrderedPair(std::size_t first, std::size_t second) const 
@@ -582,7 +593,9 @@ VoronoiEngine::Arc* VoronoiEngine::findArcAbove(double x, double sweep_line_y) c
     return candidate == nullptr ? m_last_arc : candidate;
 }
 
-int main() {
 
+
+int main() {
+    
     return 0;
 }

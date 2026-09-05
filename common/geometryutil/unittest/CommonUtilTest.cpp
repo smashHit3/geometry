@@ -4,16 +4,7 @@
 
 #include <stdexcept>
 
-namespace common::unittest {
-
-using common::geometryutil::almostEqual;
-using common::geometryutil::almostLess;
-using common::geometryutil::almostLessOrEqual;
-using common::geometryutil::almostGreater;
-using common::geometryutil::almostGreaterOrEqual;
-using common::geometryutil::isNearZero;
-using common::geometryutil::snap;
-using common::geometryutil::roundToPrecision;
+namespace common::geometryutil::unittest {
 
 TEST(CommonUtilTest, ComparesFloatingPointValuesWithRelativeTolerance) {
     EXPECT_TRUE(almostEqual(1.0, 1.0 + 1e-10));
@@ -38,7 +29,8 @@ TEST(CommonUtilTest, ComparesValuesWithToleranceAwareOrdering) {
     EXPECT_THROW(almostLess(1.0, 2.0, -tolerance), std::invalid_argument);
     EXPECT_THROW(almostLessOrEqual(1.0, 2.0, -tolerance),
                  std::invalid_argument);
-    EXPECT_THROW(almostGreater(2.0, 1.0, -tolerance), std::invalid_argument);
+    EXPECT_THROW(almostGreater(2.0, 1.0, -tolerance),
+                 std::invalid_argument);
     EXPECT_THROW(almostGreaterOrEqual(2.0, 1.0, -tolerance),
                  std::invalid_argument);
 }
@@ -62,4 +54,4 @@ TEST(CommonUtilTest, RoundsToRequestedDecimalPrecision) {
     EXPECT_THROW(roundToPrecision(1.0, -1'000), std::out_of_range);
 }
 
-} // namespace common::unittest
+} // namespace common::geometryutil::unittest

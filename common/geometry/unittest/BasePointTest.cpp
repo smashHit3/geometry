@@ -21,22 +21,22 @@ static_assert(!is_point_coordinate_type<std::string>::value);
 
 } // namespace
 
-namespace common::unittest {
+namespace common::geometry::unittest {
 
 TEST(BasePointTest, DefaultConstructionInitializesCoordinatesToZero) {
-    common::geometry::BasePoint<int> origin;
+    BasePoint<int> origin;
     EXPECT_EQ(origin.x(), 0);
     EXPECT_EQ(origin.y(), 0);
 }
 
 TEST(BasePointTest, ValueConstructionSetsCoordinates) {
-    common::geometry::BasePoint<int> point{1, 2};
+    BasePoint<int> point{1, 2};
     EXPECT_EQ(point.x(), 1);
     EXPECT_EQ(point.y(), 2);
 }
 
 TEST(BasePointTest, SupportsFloatingPointCoordinates) {
-    common::geometry::BasePoint<double> point{1.5, 2.25};
+    BasePoint<double> point{1.5, 2.25};
     EXPECT_DOUBLE_EQ(point.x(), 1.5);
     EXPECT_DOUBLE_EQ(point.y(), 2.25);
 
@@ -51,7 +51,7 @@ TEST(BasePointTest, RejectsNonNumericCoordinateTypes) {
 }
 
 TEST(BasePointTest, CoordinatesCanBeMutated) {
-    common::geometry::BasePoint<int> point;
+    BasePoint<int> point;
     point.setX(3);
     point.y() = 4;
     EXPECT_EQ(point.x(), 3);
@@ -59,10 +59,10 @@ TEST(BasePointTest, CoordinatesCanBeMutated) {
 }
 
 TEST(BasePointTest, ConstAccessorsReadCoordinates) {
-    common::geometry::BasePoint<int> point{3, 4};
-    const common::geometry::BasePoint<int>& constant_point = point;
+    BasePoint<int> point{3, 4};
+    const BasePoint<int>& constant_point = point;
     EXPECT_EQ(constant_point.x(), 3);
     EXPECT_EQ(constant_point.y(), 4);
 }
 
-} // namespace common::unittest
+} // namespace common::geometry::unittest
