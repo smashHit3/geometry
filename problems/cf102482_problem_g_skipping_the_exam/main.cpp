@@ -42,8 +42,11 @@ public:
     };
 
     VoronoiEngine() = default;
-    VoronoiEngine(std::vector<Point> sites, Aabb bounding_box) : 
-        m_sites(std::move(sites)), m_bounding_box(std::move(bounding_box)) {}
+    VoronoiEngine(std::vector<Point> sites, Aabb bounding_box) :
+        m_sites(std::move(sites)), m_bounding_box(std::move(bounding_box))
+    {
+        initializeSweepSites();
+    }
 
     VoronoiDiagram computeVoronoiDiagram();
 
@@ -94,16 +97,16 @@ private:
     struct EventComparator {
         bool operator()(const Event* lhs, const Event* rhs) const 
         {
-            if (std::abs(lhs->y - rhs->y) > EPSILON) {
+            if (lhs->y != rhs->y) {
                 return lhs->y < rhs->y; // Sort by y-coordinate
             }
             if (lhs->type != rhs->type) {
                 return lhs->type == EventType::CIRCLE_EVENT; // Circle events have higher priority than site events
             }
-            if (std::abs(lhs->x - rhs->x) > EPSILON) {
-                return lhs->x < rhs->x; // Sort by x-coordinate
+            if (lhs->x != rhs->x) {
+                return lhs->x > rhs->x; // Process equal-height sites left-to-right
             }
-            return lhs->id < rhs->id; // Sort by unique identifier
+            return lhs->id > rhs->id; // Process otherwise equal events in insertion order
         }
     };
 
@@ -129,6 +132,7 @@ private:
     bool allSitesCoCircular(Point& center) const;
     void computeCoCircularEdges(const Point& center);
     bool circumCircle(const Point& a, const Point& b, const Point& c, Point& center) const;
+    void initializeSweepSites();
     void initializeEventQueue();
     void processEventQueue();
     void processSiteEvent(Event* event);
@@ -174,6 +178,7 @@ private:
     }
     
     std::vector<Point> m_sites; // The input sites for the Voronoi diagram
+    std::vector<Point> m_sweep_sites; // Slightly perturbed sites used only by the sweep
     Aabb m_bounding_box; // The bounding box for the Voronoi diagram
     std::list<EdgeRecord> m_edge_records; // The list of edge records for the Voronoi diagram
     std::map<std::pair<std::size_t, std::size_t>, EdgeRecord*> m_edge_map; // A map from site index pairs to edge records
@@ -208,6 +213,20 @@ VoronoiEngine::VoronoiDiagram VoronoiEngine::computeVoronoiDiagram()
 
     std::vector<ClippedEdge> clipped_edges;
     clipped_edges.reserve(m_edge_records.size());
+    for (const EdgeRecord& edge : m_edge_records) {
+        const std::optional<ClippedEdge> clipped_edge = clipEdge(edge);
+        if (!clipped_edge.has_value()) {
+            continue;
+        }
+        clipped_edges.push_back(*clipped_edge);
+        diagram.edges.push_back({
+            m_sites[clipped_edge->first_site_index],
+            m_sites[clipped_edge->second_site_index],
+            clipped_edge->start,
+            clipped_edge->end,
+        });
+    }
+    diagram.cells = buildCells(clipped_edges);
 
     return diagram;
 }
@@ -254,7 +273,7 @@ void VoronoiEngine::computeCollinearEdges()
     std::sort(sorted_indices.begin(), sorted_indices.end(), [&](std::size_t i, std::size_t j) {
         return dot(m_sites[i] - p0, direction) < dot(m_sites[j] - p0, direction);
     });
-    for (std::size_t i = 1; i < sorted_indices.size() - 1; ++i) {
+    for (std::size_t i = 0; i + 1 < sorted_indices.size(); ++i) {
         findEdgeRecord(sorted_indices[i], sorted_indices[i + 1]);
     }
 }
@@ -310,8 +329,8 @@ void VoronoiEngine::computeCoCircularEdges(const Point& center)
     for (std::size_t i = 0; i < angles.size(); ++i) {
         const std::size_t first_index = angles[i].second;
         const std::size_t second_index = angles[(i + 1) % angles.size()].second;
-        findEdgeRecord(first_index, second_index);
-        addEdgeVertex(findEdgeRecord(first_index, second_index), center, (i + 2) % angles.size());
+        EdgeRecord* edge = findEdgeRecord(first_index, second_index);
+        addEdgeVertex(edge, center, angles[(i + 2) % angles.size()].second);
     }
 }
 
@@ -339,11 +358,92 @@ bool VoronoiEngine::circumCircle(const Point& a, const Point& b, const Point& c,
     return std::isfinite(center.x) && std::isfinite(center.y);
 }
 
+void VoronoiEngine::initializeSweepSites()
+{
+    m_sweep_sites = m_sites;
+    std::vector<std::size_t> ordered(m_sites.size());
+    std::iota(ordered.begin(), ordered.end(), 0);
+    std::sort(ordered.begin(), ordered.end(),
+              [&](std::size_t first, std::size_t second) {
+                  if (m_sites[first].y != m_sites[second].y) {
+                      return m_sites[first].y > m_sites[second].y;
+                  }
+                  return m_sites[first].x < m_sites[second].x;
+              });
+
+    for (std::size_t begin = 0; begin < ordered.size();) {
+        std::size_t end = begin + 1;
+        while (end < ordered.size() &&
+               m_sites[ordered[begin]].y == m_sites[ordered[end]].y) {
+            ++end;
+        }
+        if (end - begin > 1) {
+            double nearest_level_distance =
+                std::numeric_limits<double>::infinity();
+            if (begin > 0) {
+                nearest_level_distance =
+                    m_sites[ordered[begin - 1]].y -
+                    m_sites[ordered[begin]].y;
+            }
+            if (end < ordered.size()) {
+                nearest_level_distance = std::min(
+                    nearest_level_distance,
+                    m_sites[ordered[begin]].y - m_sites[ordered[end]].y);
+            }
+            const double minimum_nudge =
+                32.0 * std::numeric_limits<double>::epsilon() *
+                std::max(1.0, std::abs(m_sites[ordered[begin]].y));
+            const double nudge =
+                std::max(nearest_level_distance * 1e-8, minimum_nudge);
+            if (std::isfinite(nearest_level_distance) &&
+                nudge * static_cast<double>(end - begin) <
+                    nearest_level_distance / 4.0) {
+                for (std::size_t i = begin; i < end; ++i) {
+                    m_sweep_sites[ordered[i]].y +=
+                        nudge * static_cast<double>(i - begin);
+                }
+            }
+        }
+        begin = end;
+    }
+}
+
 void VoronoiEngine::initializeEventQueue() 
 {
+    const double highest_y = std::max_element(
+        m_sites.begin(), m_sites.end(),
+        [](const Point& first, const Point& second) {
+            return first.y < second.y;
+        })->y;
+    std::vector<std::size_t> highest_sites;
     for (std::size_t i = 0; i < m_sites.size(); ++i) {
-        m_event_queue.push(makeEvent(EventType::SITE_EVENT, m_sites[i], i));
+        if (m_sites[i].y == highest_y) {
+            highest_sites.push_back(i);
+        } else {
+            m_event_queue.push(
+                makeEvent(EventType::SITE_EVENT, m_sweep_sites[i], i));
+        }
     }
+    std::sort(highest_sites.begin(), highest_sites.end(),
+              [&](std::size_t first, std::size_t second) {
+                  return m_sites[first].x < m_sites[second].x;
+              });
+
+    Arc* previous = nullptr;
+    for (std::size_t site_index : highest_sites) {
+        Arc* arc = makeArc(site_index);
+        arc->prev = previous;
+        if (previous != nullptr) {
+            previous->next = arc;
+            previous->edge_to_next =
+                findEdgeRecord(previous->site_index, site_index);
+        } else {
+            m_first_arc = arc;
+        }
+        insertBetween(previous, nullptr, arc);
+        previous = arc;
+    }
+    m_last_arc = previous;
 }
 
 void VoronoiEngine::processEventQueue() 
@@ -371,7 +471,8 @@ void VoronoiEngine::processSiteEvent(Event* event)
         m_last_arc = m_beach_line_root;
         return;
     }
-    Arc* spilt = findArcAbove(m_sites[event->site_index].x, event->y);
+    Arc* spilt =
+        findArcAbove(m_sweep_sites[event->site_index].x, event->y);
     invalidateCircleEvent(spilt);
     // Split the arc and create new arcs for the beach line
     Arc* left_arc = makeArc(spilt->site_index);
@@ -454,12 +555,18 @@ void VoronoiEngine::scheduleCircleEvent(Arc* arc, double sweep_line_y)
     // Implementation for scheduling a circle event for the given arc
     // This typically involves computing the circumcircle of the arc and its neighbors
     // and adding a new event to the event queue if a valid circle is found.
-    const Point& a = m_sites[arc->prev->site_index];
-    const Point& b = m_sites[arc->site_index];
-    const Point& c = m_sites[arc->next->site_index];
+    const Point& a = m_sweep_sites[arc->prev->site_index];
+    const Point& b = m_sweep_sites[arc->site_index];
+    const Point& c = m_sweep_sites[arc->next->site_index];
 
     if (cross(b - a, c - a) >= -EPSILON) {
         return; // Points are collinear or clockwise, no valid circle event
+    }
+    if (std::abs(cross(
+            m_sites[arc->site_index] - m_sites[arc->prev->site_index],
+            m_sites[arc->next->site_index] -
+                m_sites[arc->prev->site_index])) <= EPSILON) {
+        return;
     }
 
     // Compute the circumcircle of points a, b, c
@@ -472,8 +579,14 @@ void VoronoiEngine::scheduleCircleEvent(Arc* arc, double sweep_line_y)
     if (!std::isfinite(event_y) || event_y >= sweep_line_y - EPSILON) {
         return; // Invalid event_y, do not schedule the circle event
     }
-    arc->circle_event = makeEvent(EventType::CIRCLE_EVENT, Point{circumcenter.x, event_y}, arc->site_index);
-    m_event_queue.push(arc->circle_event);
+    Event* event = makeEvent(
+        EventType::CIRCLE_EVENT,
+        Point{circumcenter.x, event_y},
+        arc->site_index);
+    event->arc = arc;
+    event->circle_center = circumcenter;
+    arc->circle_event = event;
+    m_event_queue.push(event);
 }
 
 void VoronoiEngine::invalidateCircleEvent(Arc* arc) 
@@ -515,6 +628,43 @@ std::optional<VoronoiEngine::ClippedEdge> VoronoiEngine::clipEdge(const VoronoiE
     }else if (!clipParameterRange((first_site + second_site) * 0.5, direction, 
               -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(), start, end)) {
         return std::nullopt; // Segment does not intersect the bounding box
+    }
+
+    const Point clipped_direction = end - start;
+    double minimum_parameter = 0.0;
+    double maximum_parameter = 1.0;
+    for (const Point& site : m_sites) {
+        const Point normal = site - first_site;
+        const double coefficient =
+            2.0 * dot(clipped_direction, normal);
+        const double limit =
+            dot(site, site) - dot(first_site, first_site) -
+            2.0 * dot(start, normal);
+        if (std::abs(coefficient) <= EPSILON) {
+            if (limit < -EPSILON) {
+                return std::nullopt;
+            }
+            continue;
+        }
+
+        const double parameter = limit / coefficient;
+        if (coefficient > 0.0) {
+            maximum_parameter = std::min(maximum_parameter, parameter);
+        } else {
+            minimum_parameter = std::max(minimum_parameter, parameter);
+        }
+        if (minimum_parameter > maximum_parameter + EPSILON) {
+            return std::nullopt;
+        }
+    }
+    start = clampToBounds(
+        start + clipped_direction * std::max(0.0, minimum_parameter));
+    end = clampToBounds(
+        start + clipped_direction *
+                    (std::min(1.0, maximum_parameter) -
+                     std::max(0.0, minimum_parameter)));
+    if (dot(end - start, end - start) <= EPSILON) {
+        return std::nullopt;
     }
     return ClippedEdge{edge.first_site_index, edge.second_site_index, start, end};
 }
@@ -618,7 +768,8 @@ VoronoiEngine::EdgeRecord* VoronoiEngine::findEdgeRecord(std::size_t first_site_
     if (it != m_edge_map.end()) {
         return it->second;
     }
-    m_edge_records.emplace_back(EdgeRecord{first_site_index, second_site_index});
+    m_edge_records.emplace_back(
+        EdgeRecord{first_site_index, second_site_index, {}, 0});
     EdgeRecord* new_edge_record = &m_edge_records.back();
     m_edge_map[ordered_pair] = new_edge_record;
     return new_edge_record;
@@ -750,13 +901,13 @@ void VoronoiEngine::removeArc(Arc* arc)
     if (arc->left_child == nullptr) {
         current = arc->parent;
         replaceArc(arc, arc->right_child);
-        if (current) {
+        if (current == nullptr) {
             current = arc->right_child;
         }
     }else if (arc->right_child == nullptr) {
         current = arc->parent;
         replaceArc(arc, arc->left_child);
-        if (current) {
+        if (current == nullptr) {
             current = arc->left_child;
         }
     }else {
@@ -775,20 +926,21 @@ void VoronoiEngine::removeArc(Arc* arc)
         replaceArc(arc, successor);
         successor->left_child = arc->left_child;
         successor->left_child->parent = successor;
+        updateHeight(successor);
         rebalanceFrom(current);
     }
 
     arc->parent = nullptr;
     arc->left_child = nullptr;
     arc->right_child = nullptr;
-    arc->height = 0;
+    arc->height = 1;
     rebalanceFrom(current);
 }
 
 double VoronoiEngine::breakPointX(std::size_t left_site_index, std::size_t right_site_index, double sweep_line_y) const 
 {
-    const Point& left_site = m_sites[left_site_index];
-    const Point& right_site = m_sites[right_site_index];
+    const Point& left_site = m_sweep_sites[left_site_index];
+    const Point& right_site = m_sweep_sites[right_site_index];
 
     if (std::abs(left_site.y - right_site.y) < EPSILON) {
         return (left_site.x + right_site.x) / 2.0;
@@ -817,7 +969,7 @@ double VoronoiEngine::breakPointX(std::size_t left_site_index, std::size_t right
     const double stable_term = -0.5 * (b + std::copysign(sqrt_discriminant, b));
     const double root1 = stable_term / a;
     const double root2 = stable_term == 0.0 ? -b / (2 * a) : c / stable_term;
-    return (left_site.y < right_site.y) ? std::min(root1, root2) : std::max(root1, root2);
+    return (left_site.y > right_site.y) ? std::min(root1, root2) : std::max(root1, root2);
 }
 
 VoronoiEngine::Arc* VoronoiEngine::findArcAbove(double x, double sweep_line_y) const 
@@ -835,16 +987,190 @@ VoronoiEngine::Arc* VoronoiEngine::findArcAbove(double x, double sweep_line_y) c
     return candidate == nullptr ? m_last_arc : candidate;
 }
 
+double squaredDistance(const VoronoiEngine::Point& first,
+                       const VoronoiEngine::Point& second)
+{
+    const double dx = first.x - second.x;
+    const double dy = first.y - second.y;
+    return dx * dx + dy * dy;
+}
+
+double cross(const VoronoiEngine::Point& first,
+             const VoronoiEngine::Point& second,
+             const VoronoiEngine::Point& third)
+{
+    return (second.x - first.x) * (third.y - first.y) -
+           (second.y - first.y) * (third.x - first.x);
+}
+
+bool pointOnSegment(const VoronoiEngine::Point& point,
+                    const VoronoiEngine::Point& start,
+                    const VoronoiEngine::Point& end)
+{
+    return std::abs(cross(start, end, point)) <= EPSILON &&
+           point.x >= std::min(start.x, end.x) - EPSILON &&
+           point.x <= std::max(start.x, end.x) + EPSILON &&
+           point.y >= std::min(start.y, end.y) - EPSILON &&
+           point.y <= std::max(start.y, end.y) + EPSILON;
+}
+
+bool pointInPolygon(const VoronoiEngine::Point& point,
+                    const std::vector<VoronoiEngine::Point>& polygon)
+{
+    bool inside = false;
+    for (std::size_t i = 0, previous = polygon.size() - 1;
+         i < polygon.size(); previous = i++) {
+        const auto& first = polygon[previous];
+        const auto& second = polygon[i];
+        if (pointOnSegment(point, first, second)) {
+            return true;
+        }
+        if ((first.y > point.y) != (second.y > point.y)) {
+            const double intersection_x =
+                first.x + (second.x - first.x) *
+                              (point.y - first.y) /
+                              (second.y - first.y);
+            if (point.x < intersection_x) {
+                inside = !inside;
+            }
+        }
+    }
+    return inside;
+}
+
+std::vector<VoronoiEngine::Point> segmentIntersections(
+    const VoronoiEngine::Point& first_start,
+    const VoronoiEngine::Point& first_end,
+    const VoronoiEngine::Point& second_start,
+    const VoronoiEngine::Point& second_end)
+{
+    const auto first_direction = first_end - first_start;
+    const auto second_direction = second_end - second_start;
+    const double denominator =
+        first_direction.x * second_direction.y -
+        first_direction.y * second_direction.x;
+    if (std::abs(denominator) <= EPSILON) {
+        std::vector<VoronoiEngine::Point> intersections;
+        if (pointOnSegment(first_start, second_start, second_end)) {
+            intersections.push_back(first_start);
+        }
+        if (pointOnSegment(first_end, second_start, second_end)) {
+            intersections.push_back(first_end);
+        }
+        if (pointOnSegment(second_start, first_start, first_end)) {
+            intersections.push_back(second_start);
+        }
+        if (pointOnSegment(second_end, first_start, first_end)) {
+            intersections.push_back(second_end);
+        }
+        return intersections;
+    }
+
+    const double offset_x = second_start.x - first_start.x;
+    const double offset_y = second_start.y - first_start.y;
+    const double first_parameter =
+        (offset_x * second_direction.y -
+         offset_y * second_direction.x) /
+        denominator;
+    const double second_parameter =
+        (offset_x * first_direction.y -
+         offset_y * first_direction.x) /
+        denominator;
+    if (first_parameter < -EPSILON || first_parameter > 1.0 + EPSILON ||
+        second_parameter < -EPSILON || second_parameter > 1.0 + EPSILON) {
+        return {};
+    }
+    return {{
+        first_start.x + first_direction.x * first_parameter,
+        first_start.y + first_direction.y * first_parameter,
+    }};
+}
+
+double boundaryMaximumSquared(
+    const std::vector<VoronoiEngine::Point>& polygon)
+{
+    struct Line {
+        double slope;
+        double intercept;
+        double start;
+    };
+
+    double result = 0.0;
+    for (std::size_t edge_index = 0;
+         edge_index < polygon.size(); ++edge_index) {
+        const auto& start = polygon[edge_index];
+        const auto& end = polygon[(edge_index + 1) % polygon.size()];
+        const auto direction = end - start;
+        const double quadratic = squaredDistance(start, end);
+
+        std::vector<Line> lines;
+        lines.reserve(polygon.size());
+        for (const auto& site : polygon) {
+            const auto offset = start - site;
+            lines.push_back({
+                2.0 * (direction.x * offset.x +
+                       direction.y * offset.y),
+                offset.x * offset.x + offset.y * offset.y,
+                0.0,
+            });
+        }
+        std::sort(lines.begin(), lines.end(),
+                  [](const Line& first, const Line& second) {
+                      if (first.slope != second.slope) {
+                          return first.slope > second.slope;
+                      }
+                      return first.intercept < second.intercept;
+                  });
+
+        std::vector<Line> envelope;
+        envelope.reserve(lines.size());
+        for (Line line : lines) {
+            if (!envelope.empty() &&
+                line.slope == envelope.back().slope) {
+                continue;
+            }
+            line.start = -std::numeric_limits<double>::infinity();
+            while (!envelope.empty()) {
+                const Line& previous = envelope.back();
+                const double intersection =
+                    (line.intercept - previous.intercept) /
+                    (previous.slope - line.slope);
+                if (intersection > previous.start) {
+                    line.start = intersection;
+                    break;
+                }
+                envelope.pop_back();
+            }
+            envelope.push_back(line);
+        }
+
+        for (const Line& line : envelope) {
+            if (line.start <= 0.0 || line.start >= 1.0) {
+                continue;
+            }
+            const double parameter = line.start;
+            result = std::max(
+                result,
+                quadratic * parameter * parameter +
+                    line.slope * parameter + line.intercept);
+        }
+    }
+    return result;
+}
+
 int main() {
     std::ios::sync_with_stdio(false);
     std::cin.tie(nullptr);
     std::cout.tie(nullptr);
     int n; std::cin >> n;
     std::vector<VoronoiEngine::Point> sites(n);
-    VoronoiEngine::Aabb bounding_box{VoronoiEngine::Point{-std::numeric_limits<double>::infinity(), 
-                                    -std::numeric_limits<double>::infinity()}, 
-                                    VoronoiEngine::Point{std::numeric_limits<double>::infinity(), 
-                                    std::numeric_limits<double>::infinity()}};
+    VoronoiEngine::Aabb bounding_box{
+        VoronoiEngine::Point{
+            std::numeric_limits<double>::infinity(),
+            std::numeric_limits<double>::infinity()},
+        VoronoiEngine::Point{
+            -std::numeric_limits<double>::infinity(),
+            -std::numeric_limits<double>::infinity()}};
     for (int i = 0; i < n; ++i) {
         std::cin >> sites[i].x >> sites[i].y;
         bounding_box.min.x = std::min(bounding_box.min.x, sites[i].x);
@@ -854,15 +1180,31 @@ int main() {
     }
     VoronoiEngine engine(sites, bounding_box);
     const auto result = engine.computeVoronoiDiagram();
-    double max_radius = 0.0;
-    for (const auto& cell : result.cells) {
-        for (const auto& vertex : cell.vertices) {
-            const double dx = vertex.x - cell.site.x;
-            const double dy = vertex.y - cell.site.y;
-            const double radius = std::sqrt(dx * dx + dy * dy);
-            max_radius = std::max(max_radius, radius);
+    double max_squared_radius = boundaryMaximumSquared(sites);
+    for (const auto& edge : result.edges) {
+        if (pointInPolygon(edge.start, sites)) {
+            max_squared_radius = std::max(
+                max_squared_radius,
+                squaredDistance(edge.start, edge.first_site));
+        }
+        if (pointInPolygon(edge.end, sites)) {
+            max_squared_radius = std::max(
+                max_squared_radius,
+                squaredDistance(edge.end, edge.first_site));
+        }
+        for (std::size_t i = 0; i < sites.size(); ++i) {
+            const auto& fence_start = sites[i];
+            const auto& fence_end = sites[(i + 1) % sites.size()];
+            for (const auto& intersection :
+                 segmentIntersections(edge.start, edge.end,
+                                      fence_start, fence_end)) {
+                max_squared_radius = std::max(
+                    max_squared_radius,
+                    squaredDistance(intersection, edge.first_site));
+            }
         }
     }
-    std::cout << max_radius << "\n";
+    std::cout << std::setprecision(12)
+              << std::sqrt(max_squared_radius) << "\n";
     return 0;
 }
