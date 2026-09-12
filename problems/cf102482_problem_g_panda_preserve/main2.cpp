@@ -16,23 +16,25 @@
 
 namespace {
 
-constexpr double EPSILON = 1e-9;
+using Real = long double;
+
+constexpr Real EPSILON = 1e-9L;
 
 class Point {
 public:
     constexpr Point() = default;
-    constexpr Point(double x, double y) : x_(x), y_(y) {}
+    constexpr Point(Real x, Real y) : x_(x), y_(y) {}
 
-    constexpr double& x() { return x_; }
-    constexpr const double& x() const { return x_; }
-    constexpr double& y() { return y_; }
-    constexpr const double& y() const { return y_; }
-    constexpr void setX(double x) { x_ = x; }
-    constexpr void setY(double y) { y_ = y; }
+    constexpr Real& x() { return x_; }
+    constexpr const Real& x() const { return x_; }
+    constexpr Real& y() { return y_; }
+    constexpr const Real& y() const { return y_; }
+    constexpr void setX(Real x) { x_ = x; }
+    constexpr void setY(Real y) { y_ = y; }
 
 private:
-    double x_ = 0.0;
-    double y_ = 0.0;
+    Real x_ = 0.0;
+    Real y_ = 0.0;
 };
 
 constexpr Point operator+(const Point& left, const Point& right)
@@ -45,53 +47,53 @@ constexpr Point operator-(const Point& left, const Point& right)
     return {left.x() - right.x(), left.y() - right.y()};
 }
 
-constexpr Point operator*(const Point& point, double scalar)
+constexpr Point operator*(const Point& point, Real scalar)
 {
     return {point.x() * scalar, point.y() * scalar};
 }
 
-constexpr Point operator/(const Point& point, double scalar)
+constexpr Point operator/(const Point& point, Real scalar)
 {
     return {point.x() / scalar, point.y() / scalar};
 }
 
-constexpr double dot(const Point& left, const Point& right)
+constexpr Real dot(const Point& left, const Point& right)
 {
     return left.x() * right.x() + left.y() * right.y();
 }
 
-constexpr double vectorCross(const Point& left, const Point& right)
+constexpr Real vectorCross(const Point& left, const Point& right)
 {
     return left.x() * right.y() - left.y() * right.x();
 }
 
-constexpr double squaredLength(const Point& point)
+constexpr Real squaredLength(const Point& point)
 {
     return dot(point, point);
 }
 
-constexpr double squaredDistance(const Point& first, const Point& second)
+constexpr Real squaredDistance(const Point& first, const Point& second)
 {
     return squaredLength(first - second);
 }
 
 class Aabb {
 public:
-    constexpr Aabb(double min_x, double min_y, double max_x, double max_y)
+    constexpr Aabb(Real min_x, Real min_y, Real max_x, Real max_y)
         : min_x_(min_x), min_y_(min_y), max_x_(max_x), max_y_(max_y)
     {
     }
 
-    constexpr double minX() const { return min_x_; }
-    constexpr double minY() const { return min_y_; }
-    constexpr double maxX() const { return max_x_; }
-    constexpr double maxY() const { return max_y_; }
+    constexpr Real minX() const { return min_x_; }
+    constexpr Real minY() const { return min_y_; }
+    constexpr Real maxX() const { return max_x_; }
+    constexpr Real maxY() const { return max_y_; }
 
 private:
-    double min_x_;
-    double min_y_;
-    double max_x_;
-    double max_y_;
+    Real min_x_;
+    Real min_y_;
+    Real max_x_;
+    Real max_y_;
 };
 
 struct VoronoiEdge {
@@ -175,8 +177,8 @@ private:
 
     struct Event {
         EventKind kind;
-        double y;
-        double x;
+        Real y;
+        Real x;
         std::size_t site = 0;
         Arc* arc = nullptr;
         Point center;
@@ -208,9 +210,9 @@ private:
     std::vector<Point> sites_;
     std::vector<Point> sweep_sites_;
     Aabb bounds_;
-    double scale_ = 1.0;
-    double length_epsilon_ = 1e-11;
-    double area_epsilon_ = 1e-12;
+    Real scale_ = 1.0;
+    Real length_epsilon_ = 1e-11;
+    Real area_epsilon_ = 1e-12;
     std::list<EdgeRecord> edges_;
     std::map<std::uint64_t, EdgeRecord*> edge_indexes_;
     std::vector<std::unique_ptr<Arc>> arcs_;
@@ -243,10 +245,10 @@ private:
         }
     }
 
-    double coordinateScale() const
+    Real coordinateScale() const
     {
-        double scale =
-            std::max({1.0, std::abs(bounds_.minX()), std::abs(bounds_.minY()),
+        Real scale =
+            std::max({1.0L, std::abs(bounds_.minX()), std::abs(bounds_.minY()),
                       std::abs(bounds_.maxX()), std::abs(bounds_.maxY())});
         for (const Point& site : sites_) {
             scale = std::max(scale, std::abs(site.x()));
@@ -258,55 +260,6 @@ private:
     void initializeSweepSites()
     {
         sweep_sites_ = sites_;
-        std::vector<std::size_t> ordered(sites_.size());
-        for (std::size_t index = 0; index < ordered.size(); ++index) {
-            ordered[index] = index;
-        }
-        std::sort(ordered.begin(), ordered.end(),
-                  [&](std::size_t left, std::size_t right) {
-                      if (sites_[left].y() != sites_[right].y()) {
-                          return sites_[left].y() > sites_[right].y();
-                      }
-                      return sites_[left].x() < sites_[right].x();
-                  });
-
-        for (std::size_t begin = 0; begin < ordered.size();) {
-            std::size_t end = begin + 1;
-            while (end < ordered.size() &&
-                   sites_[ordered[begin]].y() == sites_[ordered[end]].y()) {
-                ++end;
-            }
-            if (end - begin > 1) {
-                double nearest_level_distance =
-                    std::numeric_limits<double>::infinity();
-                if (begin > 0) {
-                    nearest_level_distance =
-                        sites_[ordered[begin - 1]].y() -
-                        sites_[ordered[begin]].y();
-                }
-                if (end < ordered.size()) {
-                    nearest_level_distance =
-                        std::min(nearest_level_distance,
-                                 sites_[ordered[begin]].y() -
-                                     sites_[ordered[end]].y());
-                }
-                const double minimum_nudge =
-                    32.0 * std::numeric_limits<double>::epsilon() *
-                    std::max(1.0, std::abs(sites_[ordered[begin]].y()));
-                const double nudge =
-                    std::max(nearest_level_distance * 1e-8, minimum_nudge);
-                if (std::isfinite(nearest_level_distance) &&
-                    nudge * static_cast<double>(end - begin) <
-                        nearest_level_distance / 4.0) {
-                    for (std::size_t index = begin; index < end; ++index) {
-                        sweep_sites_[ordered[index]].setY(
-                            sites_[ordered[index]].y() +
-                            nudge * static_cast<double>(end - index - 1));
-                    }
-                }
-            }
-            begin = end;
-        }
     }
 
     static std::uint64_t edgeKey(std::size_t first, std::size_t second)
@@ -510,8 +463,8 @@ private:
         rebalanceFrom(rebalance_start);
     }
 
-    double breakpointX(std::size_t left_index, std::size_t right_index,
-                       double directrix) const
+    Real breakpointX(std::size_t left_index, std::size_t right_index,
+                       Real directrix) const
     {
         const Point& left = sweep_sites_[left_index];
         const Point& right = sweep_sites_[right_index];
@@ -525,14 +478,14 @@ private:
             return right.x();
         }
 
-        const double left_denominator = 2.0 * (left.y() - directrix);
-        const double right_denominator = 2.0 * (right.y() - directrix);
-        const double a =
+        const Real left_denominator = 2.0 * (left.y() - directrix);
+        const Real right_denominator = 2.0 * (right.y() - directrix);
+        const Real a =
             1.0 / left_denominator - 1.0 / right_denominator;
-        const double b =
+        const Real b =
             -2.0 * (left.x() / left_denominator -
                     right.x() / right_denominator);
-        const double c =
+        const Real c =
             (left.x() * left.x() + left.y() * left.y() -
              directrix * directrix) /
                 left_denominator -
@@ -543,24 +496,24 @@ private:
             return -c / b;
         }
 
-        double discriminant = b * b - 4.0 * a * c;
+        Real discriminant = b * b - 4.0 * a * c;
         if (discriminant < 0.0 && discriminant > -area_epsilon_) {
             discriminant = 0.0;
         }
         if (discriminant < 0.0) {
             return (left.x() + right.x()) / 2.0;
         }
-        const double root = std::sqrt(discriminant);
-        const double stable_term = -0.5 * (b + std::copysign(root, b));
-        const double first_root = stable_term / a;
-        const double second_root =
+        const Real root = std::sqrt(discriminant);
+        const Real stable_term = -0.5 * (b + std::copysign(root, b));
+        const Real first_root = stable_term / a;
+        const Real second_root =
             stable_term == 0.0 ? -b / (2.0 * a) : c / stable_term;
-        const double lower = std::min(first_root, second_root);
-        const double upper = std::max(first_root, second_root);
+        const Real lower = std::min(first_root, second_root);
+        const Real upper = std::max(first_root, second_root);
         return left.y() > right.y() ? lower : upper;
     }
 
-    Arc* findArcAbove(double x, double directrix) const
+    Arc* findArcAbove(Real x, Real directrix) const
     {
         Arc* current = root_;
         Arc* candidate = nullptr;
@@ -585,7 +538,7 @@ private:
         }
     }
 
-    static double orientation(const Point& first, const Point& second,
+    static Real orientation(const Point& first, const Point& second,
                               const Point& third)
     {
         return vectorCross(second - first, third - second);
@@ -596,7 +549,7 @@ private:
     {
         const Point second_offset = second - first;
         const Point third_offset = third - first;
-        const double denominator =
+        const Real denominator =
             2.0 * vectorCross(second_offset, third_offset);
         if (std::abs(denominator) <= area_epsilon_) {
             return false;
@@ -613,7 +566,7 @@ private:
         return std::isfinite(center.x()) && std::isfinite(center.y());
     }
 
-    void scheduleCircle(Arc* middle, double directrix)
+    void scheduleCircle(Arc* middle, Real directrix)
     {
         if (middle == nullptr || middle->previous == nullptr ||
             middle->next == nullptr) {
@@ -636,13 +589,14 @@ private:
         if (!circumcenter(first, second, third, center)) {
             return;
         }
-        const double event_y =
+        Real event_y =
             center.y() -
             std::hypot(center.x() - first.x(), center.y() - first.y());
         if (!std::isfinite(event_y) ||
-            event_y >= directrix - length_epsilon_) {
+            event_y > directrix + length_epsilon_) {
             return;
         }
+        // event_y = std::min(event_y, directrix);
 
         Event* event = makeEvent(
             {EventKind::Circle, event_y, center.x(), 0, middle, center,
@@ -675,6 +629,34 @@ private:
         Arc* split =
             findArcAbove(sweep_sites_[event->site].x(), event->y);
         invalidateCircle(split);
+
+        if (sweep_sites_[split->site].y() == event->y &&
+            sweep_sites_[split->site].x() <
+                sweep_sites_[event->site].x()) {
+            Arc* next = split->next;
+            if (next != nullptr) {
+                invalidateCircle(next);
+            }
+
+            Arc* inserted = makeArc(event->site);
+            EdgeRecord* edge = edgeFor(split->site, event->site);
+            inserted->previous = split;
+            inserted->next = next;
+            inserted->edgeToNext = split->edgeToNext;
+            split->next = inserted;
+            split->edgeToNext = edge;
+            if (next != nullptr) {
+                next->previous = inserted;
+            } else {
+                last_ = inserted;
+            }
+            insertBetween(split, next, inserted);
+
+            scheduleCircle(split, event->y);
+            scheduleCircle(inserted, event->y);
+            scheduleCircle(next, event->y);
+            return;
+        }
 
         Arc* previous = split->previous;
         Arc* next = split->next;
@@ -800,7 +782,7 @@ private:
                           sites_[third_index], center)) {
             return false;
         }
-        const double radius_squared =
+        const Real radius_squared =
             squaredDistance(sites_[0], center);
         for (const Point& site : sites_) {
             if (std::abs(squaredDistance(site, center) - radius_squared) >
@@ -863,21 +845,21 @@ private:
     }
 
     bool clipParameterRange(const Point& origin, const Point& direction,
-                            double minimum_parameter,
-                            double maximum_parameter, Point& start,
+                            Real minimum_parameter,
+                            Real maximum_parameter, Point& start,
                             Point& end) const
     {
         const auto update_range =
-            [&](double origin_coordinate, double direction_coordinate,
-                double lower, double upper, double& minimum,
-                double& maximum) {
+            [&](Real origin_coordinate, Real direction_coordinate,
+                Real lower, Real upper, Real& minimum,
+                Real& maximum) {
                 if (direction_coordinate == 0.0) {
                     return origin_coordinate >= lower - length_epsilon_ &&
                            origin_coordinate <= upper + length_epsilon_;
                 }
-                double first =
+                Real first =
                     (lower - origin_coordinate) / direction_coordinate;
-                double second =
+                Real second =
                     (upper - origin_coordinate) / direction_coordinate;
                 if (first > second) {
                     std::swap(first, second);
@@ -931,13 +913,13 @@ private:
             }
             if (!clipParameterRange(
                     vertex.point, ray_direction, 0.0,
-                    std::numeric_limits<double>::infinity(), start, end)) {
+                    std::numeric_limits<Real>::infinity(), start, end)) {
                 return std::nullopt;
             }
         } else if (!clipParameterRange(
                        (first_site + second_site) / 2.0, direction,
-                       -std::numeric_limits<double>::infinity(),
-                       std::numeric_limits<double>::infinity(),
+                       -std::numeric_limits<Real>::infinity(),
+                       std::numeric_limits<Real>::infinity(),
                        start, end)) {
             return std::nullopt;
         }
@@ -950,7 +932,7 @@ struct ClippedSegment {
     Point end;
 };
 
-double cross(const Point& first, const Point& second, const Point& third)
+Real cross(const Point& first, const Point& second, const Point& third)
 {
     return vectorCross(second - first, third - first);
 }
@@ -976,7 +958,7 @@ bool pointInPolygon(const Point& point, const std::vector<Point>& polygon)
             return true;
         }
         if ((first.y() > point.y()) != (second.y() > point.y())) {
-            const double intersection_x =
+            const Real intersection_x =
                 first.x() + (second.x() - first.x()) *
                                 (point.y() - first.y()) /
                                 (second.y() - first.y());
@@ -992,11 +974,11 @@ std::vector<Point> segmentIntersections(
     const Point& first_start, const Point& first_end,
     const Point& second_start, const Point& second_end)
 {
-    const double first_dx = first_end.x() - first_start.x();
-    const double first_dy = first_end.y() - first_start.y();
-    const double second_dx = second_end.x() - second_start.x();
-    const double second_dy = second_end.y() - second_start.y();
-    const double denominator =
+    const Real first_dx = first_end.x() - first_start.x();
+    const Real first_dy = first_end.y() - first_start.y();
+    const Real second_dx = second_end.x() - second_start.x();
+    const Real second_dy = second_end.y() - second_start.y();
+    const Real denominator =
         first_dx * second_dy - first_dy * second_dx;
 
     if (std::abs(denominator) <= EPSILON) {
@@ -1016,11 +998,11 @@ std::vector<Point> segmentIntersections(
         return intersections;
     }
 
-    const double offset_x = second_start.x() - first_start.x();
-    const double offset_y = second_start.y() - first_start.y();
-    const double first_parameter =
+    const Real offset_x = second_start.x() - first_start.x();
+    const Real offset_y = second_start.y() - first_start.y();
+    const Real first_parameter =
         (offset_x * second_dy - offset_y * second_dx) / denominator;
-    const double second_parameter =
+    const Real second_parameter =
         (offset_x * first_dy - offset_y * first_dx) / denominator;
     if (first_parameter < -EPSILON ||
         first_parameter > 1.0 + EPSILON ||
@@ -1038,8 +1020,8 @@ std::vector<Point> segmentIntersections(
 std::optional<ClippedSegment> clipToVoronoiRegion(
     const VoronoiEdge& edge, const std::vector<Point>& sites)
 {
-    const double direction_x = edge.end.x() - edge.start.x();
-    const double direction_y = edge.end.y() - edge.start.y();
+    const Real direction_x = edge.end.x() - edge.start.x();
+    const Real direction_y = edge.end.y() - edge.start.y();
     long double minimum_parameter = 0.0L;
     long double maximum_parameter = 1.0L;
 
@@ -1099,37 +1081,23 @@ std::optional<ClippedSegment> clipToVoronoiRegion(
     const auto point_at = [&](long double parameter) {
         return Point{
             edge.start.x() +
-                direction_x * static_cast<double>(parameter),
+                direction_x * static_cast<Real>(parameter),
             edge.start.y() +
-                direction_y * static_cast<double>(parameter),
+                direction_y * static_cast<Real>(parameter),
         };
     };
     return ClippedSegment{
         point_at(minimum_parameter), point_at(maximum_parameter)};
 }
 
-Point rotateQuarterTurns(const Point& point, int turns)
-{
-    switch (turns & 3) {
-    case 0:
-        return point;
-    case 1:
-        return {-point.y(), point.x()};
-    case 2:
-        return {-point.x(), -point.y()};
-    default:
-        return {point.y(), -point.x()};
-    }
-}
-
 std::vector<VoronoiEdge> buildFortuneEdges(
     const std::vector<Point>& sites)
 {
-    std::map<std::pair<double, double>, std::size_t> site_indices;
-    double original_min_x = std::numeric_limits<double>::infinity();
-    double original_min_y = std::numeric_limits<double>::infinity();
-    double original_max_x = -std::numeric_limits<double>::infinity();
-    double original_max_y = -std::numeric_limits<double>::infinity();
+    std::map<std::pair<Real, Real>, std::size_t> site_indices;
+    Real original_min_x = std::numeric_limits<Real>::infinity();
+    Real original_min_y = std::numeric_limits<Real>::infinity();
+    Real original_max_x = -std::numeric_limits<Real>::infinity();
+    Real original_max_y = -std::numeric_limits<Real>::infinity();
     for (std::size_t index = 0; index < sites.size(); ++index) {
         site_indices[{sites[index].x(), sites[index].y()}] = index;
         original_min_x = std::min(original_min_x, sites[index].x());
@@ -1139,42 +1107,21 @@ std::vector<VoronoiEdge> buildFortuneEdges(
     }
 
     std::set<std::pair<std::size_t, std::size_t>> adjacent_pairs;
-    for (int turns = 0; turns < 4; ++turns) {
-        std::vector<Point> rotated_sites;
-        rotated_sites.reserve(sites.size());
-        double min_x = std::numeric_limits<double>::infinity();
-        double min_y = std::numeric_limits<double>::infinity();
-        double max_x = -std::numeric_limits<double>::infinity();
-        double max_y = -std::numeric_limits<double>::infinity();
-        for (const Point& site : sites) {
-            const Point rotated = rotateQuarterTurns(site, turns);
-            rotated_sites.push_back(rotated);
-            min_x = std::min(min_x, rotated.x());
-            min_y = std::min(min_y, rotated.y());
-            max_x = std::max(max_x, rotated.x());
-            max_y = std::max(max_y, rotated.y());
+    const VoronoiDiagram diagram =
+        FortuneVoronoiBuilder(
+            sites,
+            Aabb{original_min_x, original_min_y,
+                 original_max_x, original_max_y})
+            .build();
+    for (const VoronoiEdge& edge : diagram.edges) {
+        std::size_t first_index =
+            site_indices.at({edge.firstSite.x(), edge.firstSite.y()});
+        std::size_t second_index =
+            site_indices.at({edge.secondSite.x(), edge.secondSite.y()});
+        if (first_index > second_index) {
+            std::swap(first_index, second_index);
         }
-
-        const VoronoiDiagram diagram =
-            FortuneVoronoiBuilder(
-                std::move(rotated_sites),
-                Aabb{min_x, min_y, max_x, max_y})
-                .build();
-        for (const VoronoiEdge& edge : diagram.edges) {
-            const int inverse_turns = (4 - turns) & 3;
-            const Point first =
-                rotateQuarterTurns(edge.firstSite, inverse_turns);
-            const Point second =
-                rotateQuarterTurns(edge.secondSite, inverse_turns);
-            std::size_t first_index =
-                site_indices.at({first.x(), first.y()});
-            std::size_t second_index =
-                site_indices.at({second.x(), second.y()});
-            if (first_index > second_index) {
-                std::swap(first_index, second_index);
-            }
-            adjacent_pairs.emplace(first_index, second_index);
-        }
+        adjacent_pairs.emplace(first_index, second_index);
     }
 
     const auto clip_line_to_bounds =
@@ -1185,8 +1132,8 @@ std::vector<VoronoiEdge> buildFortuneEdges(
             long double maximum_parameter =
                 std::numeric_limits<long double>::infinity();
             const auto update_range =
-                [&](double coordinate, double delta,
-                    double lower, double upper) {
+                [&](Real coordinate, Real delta,
+                    Real lower, Real upper) {
                     if (std::abs(delta) <= EPSILON) {
                         return coordinate >= lower - EPSILON &&
                                coordinate <= upper + EPSILON;
@@ -1217,9 +1164,9 @@ std::vector<VoronoiEdge> buildFortuneEdges(
             const auto point_at = [&](long double parameter) {
                 return Point{
                     origin.x() +
-                        direction.x() * static_cast<double>(parameter),
+                        direction.x() * static_cast<Real>(parameter),
                     origin.y() +
-                        direction.y() * static_cast<double>(parameter),
+                        direction.y() * static_cast<Real>(parameter),
                 };
             };
             return ClippedSegment{
@@ -1265,7 +1212,7 @@ int main()
     const std::vector<VoronoiEdge> voronoi_edges =
         buildFortuneEdges(polygon);
 
-    double maximum_squared_radius = 0.0;
+    Real maximum_squared_radius = 0.0;
     for (const VoronoiEdge& edge : voronoi_edges) {
         const auto clipped_edge = clipToVoronoiRegion(edge, polygon);
         if (!clipped_edge.has_value()) {
