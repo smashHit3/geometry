@@ -97,8 +97,8 @@ private:
 };
 
 struct VoronoiEdge {
-    Point firstSite;
-    Point secondSite;
+    std::size_t firstSite;
+    std::size_t secondSite;
     Point start;
     Point end;
 };
@@ -116,7 +116,6 @@ public:
         scale_ = coordinateScale();
         length_epsilon_ = scale_ * 1e-11;
         area_epsilon_ = scale_ * scale_ * 1e-12;
-        initializeSweepSites();
     }
 
     VoronoiDiagram build()
@@ -139,8 +138,7 @@ public:
             const auto clipped = clipEdge(edge);
             if (clipped.has_value()) {
                 diagram.edges.push_back(
-                    {sites_[edge.first], sites_[edge.second],
-                     clipped->start, clipped->end});
+                    {edge.first, edge.second, clipped->start, clipped->end});
             }
         }
         return diagram;
@@ -208,7 +206,6 @@ private:
     };
 
     std::vector<Point> sites_;
-    std::vector<Point> sweep_sites_;
     Aabb bounds_;
     Real scale_ = 1.0;
     Real length_epsilon_ = 1e-11;
@@ -257,11 +254,6 @@ private:
         return scale;
     }
 
-    void initializeSweepSites()
-    {
-        sweep_sites_ = sites_;
-    }
-
     static std::uint64_t edgeKey(std::size_t first, std::size_t second)
     {
         const auto lower =
@@ -303,8 +295,8 @@ private:
     {
         for (std::size_t index = 0; index < sites_.size(); ++index) {
             queue_.push(makeEvent(
-                {EventKind::Site, sweep_sites_[index].y(),
-                 sweep_sites_[index].x(), index, nullptr, {}, true, 0}));
+                {EventKind::Site, sites_[index].y(),
+                 sites_[index].x(), index, nullptr, {}, true, 0}));
         }
     }
 
@@ -466,8 +458,8 @@ private:
     Real breakpointX(std::size_t left_index, std::size_t right_index,
                        Real directrix) const
     {
-        const Point& left = sweep_sites_[left_index];
-        const Point& right = sweep_sites_[right_index];
+        const Point& left = sites_[left_index];
+        const Point& right = sites_[right_index];
         if (left.y() == right.y()) {
             return (left.x() + right.x()) / 2.0;
         }
@@ -572,9 +564,9 @@ private:
             middle->next == nullptr) {
             return;
         }
-        const Point& first = sweep_sites_[middle->previous->site];
-        const Point& second = sweep_sites_[middle->site];
-        const Point& third = sweep_sites_[middle->next->site];
+        const Point& first = sites_[middle->previous->site];
+        const Point& second = sites_[middle->site];
+        const Point& third = sites_[middle->next->site];
         if (orientation(first, second, third) >= -area_epsilon_) {
             return;
         }
@@ -596,7 +588,6 @@ private:
             event_y > directrix + length_epsilon_) {
             return;
         }
-        // event_y = std::min(event_y, directrix);
 
         Event* event = makeEvent(
             {EventKind::Circle, event_y, center.x(), 0, middle, center,
@@ -626,13 +617,11 @@ private:
             return;
         }
 
-        Arc* split =
-            findArcAbove(sweep_sites_[event->site].x(), event->y);
+        Arc* split = findArcAbove(sites_[event->site].x(), event->y);
         invalidateCircle(split);
 
-        if (sweep_sites_[split->site].y() == event->y &&
-            sweep_sites_[split->site].x() <
-                sweep_sites_[event->site].x()) {
+        if (sites_[split->site].y() == event->y &&
+            sites_[split->site].x() < sites_[event->site].x()) {
             Arc* next = split->next;
             if (next != nullptr) {
                 invalidateCircle(next);
@@ -1020,35 +1009,33 @@ std::vector<Point> segmentIntersections(
 std::optional<ClippedSegment> clipToVoronoiRegion(
     const VoronoiEdge& edge, const std::vector<Point>& sites)
 {
+    const Point& first_site = sites[edge.firstSite];
     const Real direction_x = edge.end.x() - edge.start.x();
     const Real direction_y = edge.end.y() - edge.start.y();
-    long double minimum_parameter = 0.0L;
-    long double maximum_parameter = 1.0L;
+    Real minimum_parameter = 0.0L;
+    Real maximum_parameter = 1.0L;
 
-    for (const Point& site : sites) {
-        if ((site.x() == edge.firstSite.x() &&
-             site.y() == edge.firstSite.y()) ||
-            (site.x() == edge.secondSite.x() &&
-             site.y() == edge.secondSite.y())) {
+    for (std::size_t site_index = 0; site_index < sites.size();
+         ++site_index) {
+        if (site_index == edge.firstSite ||
+            site_index == edge.secondSite) {
             continue;
         }
+        const Point& site = sites[site_index];
 
-        const long double normal_x = site.x() - edge.firstSite.x();
-        const long double normal_y = site.y() - edge.firstSite.y();
-        const long double coefficient =
+        const Real normal_x = site.x() - first_site.x();
+        const Real normal_y = site.y() - first_site.y();
+        const Real coefficient =
             2.0L * (direction_x * normal_x +
                     direction_y * normal_y);
-        const long double limit =
-            static_cast<long double>(site.x()) * site.x() +
-            static_cast<long double>(site.y()) * site.y() -
-            static_cast<long double>(edge.firstSite.x()) *
-                edge.firstSite.x() -
-            static_cast<long double>(edge.firstSite.y()) *
-                edge.firstSite.y() -
+        const Real limit =
+            site.x() * site.x() + site.y() * site.y() -
+            first_site.x() * first_site.x() -
+            first_site.y() * first_site.y() -
             2.0L * (edge.start.x() * normal_x +
                     edge.start.y() * normal_y);
-        const long double tolerance =
-            64.0L * std::numeric_limits<long double>::epsilon() *
+        const Real tolerance =
+            64.0L * std::numeric_limits<Real>::epsilon() *
             std::max({std::abs(coefficient), std::abs(limit), 1.0L});
 
         if (std::abs(coefficient) <= tolerance) {
@@ -1058,7 +1045,7 @@ std::optional<ClippedSegment> clipToVoronoiRegion(
             continue;
         }
 
-        const long double parameter = limit / coefficient;
+        const Real parameter = limit / coefficient;
         if (coefficient > 0.0L) {
             maximum_parameter =
                 std::min(maximum_parameter, parameter);
@@ -1078,12 +1065,10 @@ std::optional<ClippedSegment> clipToVoronoiRegion(
         return std::nullopt;
     }
 
-    const auto point_at = [&](long double parameter) {
+    const auto point_at = [&](Real parameter) {
         return Point{
-            edge.start.x() +
-                direction_x * static_cast<Real>(parameter),
-            edge.start.y() +
-                direction_y * static_cast<Real>(parameter),
+            edge.start.x() + direction_x * parameter,
+            edge.start.y() + direction_y * parameter,
         };
     };
     return ClippedSegment{
@@ -1093,13 +1078,11 @@ std::optional<ClippedSegment> clipToVoronoiRegion(
 std::vector<VoronoiEdge> buildFortuneEdges(
     const std::vector<Point>& sites)
 {
-    std::map<std::pair<Real, Real>, std::size_t> site_indices;
     Real original_min_x = std::numeric_limits<Real>::infinity();
     Real original_min_y = std::numeric_limits<Real>::infinity();
     Real original_max_x = -std::numeric_limits<Real>::infinity();
     Real original_max_y = -std::numeric_limits<Real>::infinity();
     for (std::size_t index = 0; index < sites.size(); ++index) {
-        site_indices[{sites[index].x(), sites[index].y()}] = index;
         original_min_x = std::min(original_min_x, sites[index].x());
         original_min_y = std::min(original_min_y, sites[index].y());
         original_max_x = std::max(original_max_x, sites[index].x());
@@ -1114,10 +1097,8 @@ std::vector<VoronoiEdge> buildFortuneEdges(
                  original_max_x, original_max_y})
             .build();
     for (const VoronoiEdge& edge : diagram.edges) {
-        std::size_t first_index =
-            site_indices.at({edge.firstSite.x(), edge.firstSite.y()});
-        std::size_t second_index =
-            site_indices.at({edge.secondSite.x(), edge.secondSite.y()});
+        std::size_t first_index = edge.firstSite;
+        std::size_t second_index = edge.secondSite;
         if (first_index > second_index) {
             std::swap(first_index, second_index);
         }
@@ -1127,10 +1108,10 @@ std::vector<VoronoiEdge> buildFortuneEdges(
     const auto clip_line_to_bounds =
         [&](const Point& origin, const Point& direction)
         -> std::optional<ClippedSegment> {
-            long double minimum_parameter =
-                -std::numeric_limits<long double>::infinity();
-            long double maximum_parameter =
-                std::numeric_limits<long double>::infinity();
+            Real minimum_parameter =
+                -std::numeric_limits<Real>::infinity();
+            Real maximum_parameter =
+                std::numeric_limits<Real>::infinity();
             const auto update_range =
                 [&](Real coordinate, Real delta,
                     Real lower, Real upper) {
@@ -1138,12 +1119,8 @@ std::vector<VoronoiEdge> buildFortuneEdges(
                         return coordinate >= lower - EPSILON &&
                                coordinate <= upper + EPSILON;
                     }
-                    long double first =
-                        (static_cast<long double>(lower) - coordinate) /
-                        delta;
-                    long double second =
-                        (static_cast<long double>(upper) - coordinate) /
-                        delta;
+                    Real first = (lower - coordinate) / delta;
+                    Real second = (upper - coordinate) / delta;
                     if (first > second) {
                         std::swap(first, second);
                     }
@@ -1161,12 +1138,10 @@ std::vector<VoronoiEdge> buildFortuneEdges(
                     original_min_y, original_max_y)) {
                 return std::nullopt;
             }
-            const auto point_at = [&](long double parameter) {
+            const auto point_at = [&](Real parameter) {
                 return Point{
-                    origin.x() +
-                        direction.x() * static_cast<Real>(parameter),
-                    origin.y() +
-                        direction.y() * static_cast<Real>(parameter),
+                    origin.x() + direction.x() * parameter,
+                    origin.y() + direction.y() * parameter,
                 };
             };
             return ClippedSegment{
@@ -1188,7 +1163,7 @@ std::vector<VoronoiEdge> buildFortuneEdges(
             continue;
         }
         edges.push_back({
-            first, second, segment->start, segment->end});
+            first_index, second_index, segment->start, segment->end});
     }
     return edges;
 }
@@ -1199,7 +1174,6 @@ int main()
 {
     std::ios::sync_with_stdio(false);
     std::cin.tie(nullptr);
-    std::cout.tie(nullptr);
 
     int vertex_count;
     std::cin >> vertex_count;
@@ -1224,12 +1198,12 @@ int main()
         if (pointInPolygon(edge_start, polygon)) {
             maximum_squared_radius = std::max(
                 maximum_squared_radius,
-                squaredDistance(edge_start, edge.firstSite));
+                squaredDistance(edge_start, polygon[edge.firstSite]));
         }
         if (pointInPolygon(edge_end, polygon)) {
             maximum_squared_radius = std::max(
                 maximum_squared_radius,
-                squaredDistance(edge_end, edge.firstSite));
+                squaredDistance(edge_end, polygon[edge.firstSite]));
         }
 
         for (std::size_t index = 0; index < polygon.size(); ++index) {
@@ -1241,7 +1215,8 @@ int main()
                                       boundary_start, boundary_end)) {
                 maximum_squared_radius = std::max(
                     maximum_squared_radius,
-                    squaredDistance(intersection, edge.firstSite));
+                    squaredDistance(intersection,
+                                    polygon[edge.firstSite]));
             }
         }
     }
