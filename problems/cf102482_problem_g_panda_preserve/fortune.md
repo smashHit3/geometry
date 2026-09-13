@@ -2,27 +2,68 @@
 
 ## 1. Problem reduction
 
-For a point `x` in the park, define
+Let the polygon vertices, which are also the possible transmitter sites, be
 
 ```text
-f(x) = min distance(x, polygon vertex)
+S = {s0, s1, ..., s(n - 1)}.
 ```
 
-The required receiver range is
+For a point `x` in the park `P`, define
 
 ```text
-max f(x), over all x inside or on the polygon.
+f(x) = min(i) |x - si|.
 ```
 
-The nearest polygon vertex is constant within each Voronoi cell. Inside one
-cell, `f(x)` is the distance to that cell's site. Since squared distance is a
-convex function, its maximum over a clipped Voronoi edge occurs at an extreme
-point of the part lying inside the park.
+The required receiver range is therefore
+
+```text
+R = max(x in P) f(x).
+```
+
+This is the radius of the largest empty circle whose center is constrained to
+lie in the park and whose interior contains no polygon vertex. The circle may
+cross the polygon boundary; only its center has to belong to the park.
+
+The Voronoi cell of site `si` is
+
+```text
+Vi = {x : |x - si| <= |x - sj| for every j}.
+```
+
+For `x` in `Vi`, the nearest site is `si`, hence
+
+```text
+f(x)^2 = |x - si|^2.
+```
+
+The function on the right is convex. It has no strict local maximum in the
+interior of a two-dimensional region: moving from an interior point in the
+direction away from `si` increases the distance until the boundary is
+reached. Thus a maximum over `P intersect Vi` lies on its boundary.
+
+That boundary consists of pieces of:
+
+- the park boundary, and
+- Voronoi edges.
+
+On a straight boundary piece parameterized by `p(t) = a + td`,
+
+```text
+|p(t) - si|^2
+    = |d|^2 t^2 + 2 d dot (a - si) t + |a - si|^2,
+```
+
+which is a convex quadratic. Its maximum over any closed interval occurs at
+an endpoint. The endpoints of all relevant pieces are either Voronoi vertices
+inside the park or intersections of Voronoi edges with the park boundary.
+Polygon vertices themselves need not be added separately: each one is a site,
+so its nearest-site distance is zero.
 
 Consequently, an optimum occurs at one of:
 
 1. A Voronoi vertex inside the polygon.
-2. An extreme intersection between a Voronoi edge and the polygon boundary.
+2. An endpoint of a connected portion of a Voronoi edge inside the polygon,
+   equivalently a Voronoi-edge/polygon-boundary intersection.
 
 The implementation first constructs the Voronoi diagram with Fortune's
 algorithm and then finds these candidates with sweep-line clipping.
@@ -33,20 +74,43 @@ All geometric calculations use `long double` through the `Real` alias.
 
 Two scale-dependent tolerances are used by the Fortune sweep:
 
-- `length_epsilon_` for coordinate and distance comparisons.
-- `area_epsilon_` for orientation and determinant comparisons.
+- `length_epsilon_ = scale * 1e-11` for coordinate and distance comparisons.
+- `area_epsilon_ = scale^2 * 1e-12` for orientation and determinant
+  comparisons.
+
+Here `scale` is at least `1` and at least the absolute value of every input
+coordinate. The different dimensions matter: coordinate differences scale
+linearly, while cross products scale quadratically.
 
 Input vertices are distinct integer points, but Voronoi vertices and
 intersections are generally non-integral.
 
+The later polygon-clipping sweeps use the fixed `EPSILON = 1e-9`. Distances
+are accumulated as squared distances and only the final answer is square
+rooted. Besides avoiding repeated square roots, this keeps comparisons
+monotone and slightly more stable.
+
 ## 3. Fortune Voronoi construction
+
+Fortune's algorithm moves a horizontal sweep line, called the **directrix**,
+from top to bottom. The processed sites lie above the directrix. Their
+parabolas separate points already known to be closer to a processed site from
+points not reached by the sweep. The lower envelope of those parabolas is the
+**beach line**.
+
+Each maximal parabola portion on the envelope is an arc. A breakpoint between
+two neighboring arcs traces a Voronoi edge because every point on it is
+equidistant from the two corresponding sites.
 
 ### 3.1 Events
 
 The event queue processes events from larger `y` to smaller `y`:
 
-- **Site event:** a new parabola enters the beach line.
-- **Circle event:** an existing beach-line arc disappears.
+- **Site event at `(sx, sy)`:** the directrix reaches a new site and its
+  parabola enters the beach line.
+- **Circle event at `(cx, cy - r)`:** three neighboring arcs meet at the
+  circumcenter `(cx, cy)` and the middle arc disappears when the directrix
+  reaches the bottom of their circumcircle.
 
 At equal heights, site events are processed before circle events. Site events
 are ordered from left to right.
@@ -80,6 +144,16 @@ keys are equal.
 When an arc's neighborhood changes, its pending circle event is invalidated
 instead of being removed from the priority queue. Invalid events are ignored
 when popped.
+
+This lazy invalidation is important because `std::priority_queue` cannot erase
+an arbitrary element efficiently. The test
+
+```cpp
+middle->circle == event
+```
+
+also ensures that an old event cannot remove an arc after a newer event has
+been scheduled for it.
 
 ### 3.2 Beach line
 
@@ -147,6 +221,37 @@ Arc* findArcAbove(Real x, Real directrix) const
 At a fixed directrix the breakpoint order agrees with the linked-list order,
 so the AVL tree can search by this dynamically evaluated key without rebuilding
 the tree after every event.
+
+#### Computing a breakpoint
+
+For a focus `(px, py)` and directrix `y = l`, its parabola satisfies
+
+```text
+(x - px)^2 + (y - py)^2 = (y - l)^2.
+```
+
+Solving for `y` gives
+
+```text
+y = ((x - px)^2 + py^2 - l^2) / (2(py - l)).
+```
+
+Equating this expression for two neighboring sites produces the quadratic
+solved by `breakpointX()`. There may be two algebraic roots, but only one is
+the breakpoint on the lower envelope. The implementation selects the lower
+root when the left focus is higher and the upper root otherwise.
+
+The quadratic formula is evaluated with
+
+```text
+q = -0.5 * (b + sign(b) * sqrt(discriminant))
+x1 = q / a
+x2 = c / q
+```
+
+to avoid catastrophic cancellation when `b` and the square root have similar
+magnitudes. Equal focus heights and a focus lying directly on the directrix
+are handled separately because the general formula degenerates there.
 
 ### 3.3 Site event
 
@@ -223,7 +328,27 @@ right->next = next;
 right->edgeToNext = split->edgeToNext;
 ```
 
+The original `split` object is removed from the AVL tree but remains safely
+allocated in `arcs_`. Stable allocation is required because stale queue events
+may still contain its pointer; lazy invalidation makes those pointers harmless.
+
+After either insertion form, only triples touching the modified neighborhood
+can have gained or lost a circle event. Rechecking those local arcs is enough;
+all other triples are unchanged.
+
 ### 3.4 Circle event
+
+For consecutive sites `a`, `b`, and `c`, a disappearing middle arc requires
+the correct turn for a downward sweep. `scheduleCircle()` therefore rejects
+non-clockwise and near-collinear triples. It computes the circumcenter from
+cross products, then schedules
+
+```text
+event_y = center.y - radius.
+```
+
+Events above the current directrix are stale or geometrically impossible and
+are rejected.
 
 When three consecutive arcs define a valid empty circle:
 
@@ -258,6 +383,11 @@ removeFromTree(middle);
 The two old breakpoints terminate at `center`; the newly adjacent outer arcs
 start a new Voronoi edge at the same point.
 
+`addVertex()` increments `completedBreakpoints` even if the geometric point is
+already stored. This distinction handles cocircular degeneracies: several
+topological breakpoint completions can coincide at one geometric Voronoi
+vertex.
+
 ### 3.5 Edge completion
 
 `EdgeRecord` stores:
@@ -277,6 +407,31 @@ box:
 
 The resulting `VoronoiEdge` retains its generating site indices, its bounded
 segment, and its real circle-event vertices.
+
+The clipping box is exactly the polygon's axis-aligned bounding box. This is
+sufficient because every point of the polygon lies in that box, so no
+discarded part of a Voronoi edge can intersect the park.
+
+For sites `p` and `q`, a direction vector along their perpendicular bisector
+is
+
+```text
+d = (py - qy, qx - px).
+```
+
+For a ray with one finite Voronoi vertex, there are two possible signs of
+`d`. The `opposite` site stored with the circle event identifies the side
+occupied by the Delaunay triangle. The ray must point away from that site, so
+the implementation flips `d` when
+
+```text
+dot(opposite - p, d) > 0.
+```
+
+`clipParameterRange()` is a slab intersection. It starts with the allowed
+parameter interval (`[0, 1]` for a segment or `[0, +infinity)` for a ray) and
+intersects it with the parameter intervals imposed by the box's `x` and `y`
+slabs. An empty interval means the edge never reaches the box.
 
 The distinction between a segment and a ray appears explicitly in
 `clipEdge()`:
@@ -320,13 +475,27 @@ is a convex quadratic in `t`. Even if a non-convex polygon intersects the edge
 in many disjoint intervals, the maximum over all retained intervals occurs at
 the globally smallest or largest retained parameter.
 
-It is therefore sufficient to find:
+Suppose the part of one Voronoi edge inside the non-convex polygon is a union
+of parameter intervals:
+
+```text
+[a1, b1] union [a2, b2] union ... union [ak, bk].
+```
+
+Convexity implies that the maximum over their union occurs at the globally
+smallest or globally largest retained parameter, namely `a1` or `bk` after
+sorting the intervals. It is therefore sufficient to find:
 
 - The first polygon crossing from the left endpoint.
 - The first polygon crossing from the right endpoint.
 - Any genuine Voronoi endpoint that lies inside the polygon.
 
 There is no need to enumerate intermediate crossings.
+
+If the bounded segment starts inside the polygon, its endpoint is a genuine
+Voronoi vertex and is covered by the point-location sweep. Otherwise, the
+first retained point is precisely the first boundary crossing. The symmetric
+argument applies at the other end.
 
 ### 4.2 Preparing sweep segments
 
@@ -374,6 +543,13 @@ Polygon edges are classified using their original direction:
 Voronoi segments also store one generating site so candidate distances can be
 evaluated in constant time.
 
+For the counterclockwise polygon order used by the problem, an edge directed
+left-to-right has polygon interior above it and is a `LowerBoundary`. An edge
+whose original direction is right-to-left is normalized by swapping its
+endpoints; its interior lies below it and it receives the `UpperBoundary`
+label. This label is later enough to answer point-location queries without
+counting all ray crossings.
+
 ### 4.3 Active-edge ordering
 
 `SweepSegmentLess` orders active segments by their vertical positions over
@@ -395,6 +571,13 @@ Real yAt(Real x) const
 
 The comparator evaluates two segments at the beginning and end of their
 overlapping x-range. The stable `id` tie-break handles shared endpoints.
+
+This avoids storing a mutable global sweep coordinate inside the comparator,
+which would violate the ordering requirements of `std::set`. For segment
+pairs that cannot cross while simultaneously active, their order at the ends
+of the overlap determines a consistent ordering throughout the overlap.
+Polygon/Voronoi pairs are removed at their first crossing, before their order
+would reverse.
 
 ### 4.4 Extreme-intersection sweeps
 
@@ -419,6 +602,19 @@ current direction is processed. The sweep runs twice:
 Events whose `x` coordinates differ by at most `EPSILON` are treated as
 simultaneous. Removal events run before insertion and crossing events to keep
 the active ordering valid at shared endpoints.
+
+At insertion, only the predecessor and successor can be the first segment
+crossed. At removal, those two neighbors become adjacent and are checked
+together. Thus each set update schedules only `O(1)` intersection tests.
+
+A crossing event is represented as removal of the Voronoi segment rather than
+an order swap because this pass needs only that segment's first crossing.
+Stale crossing or endpoint-removal events are harmless: `active.find()` fails
+after the segment has already been removed.
+
+Reflection for the second pass maps `x` to `-x`, then swaps each normalized
+segment's endpoints. The same left-to-right implementation consequently sees
+the original geometry from right to left.
 
 The key operation is `schedule_crossing`:
 
@@ -461,6 +657,18 @@ never generated.
 
 Artificial endpoints introduced when unbounded Voronoi rays are clipped to
 the bounding box are deliberately excluded from these queries.
+
+Why does the first boundary above the query determine containment? On a
+vertical line through a point not on the boundary, polygon crossings alternate
+between entering and leaving the polygon. Above the highest interior interval
+there is no polygon. Moving downward across a boundary labeled
+`UpperBoundary` enters an interior interval, while crossing a `LowerBoundary`
+leaves one. Therefore a query lies inside exactly when the first edge above it
+has the `UpperBoundary` label.
+
+Boundary points are valid centers as well. The event ordering and epsilon
+tie-breaking retain them consistently; evaluating their distance again does
+not affect the maximum.
 
 For a query point, `lower_bound` finds the first boundary edge above it:
 
@@ -547,28 +755,58 @@ int main()
 
 ## 6. Correctness outline
 
-1. Fortune's event sweep records every adjacency change of the beach line, so
-   its completed breakpoints form the Voronoi diagram.
-2. A site event creates exactly the two breakpoints surrounding the new arc.
-3. A valid circle event removes exactly one disappearing arc and joins its two
-   neighbors at the correct circumcenter.
-4. On a Voronoi edge, squared distance to either generating site is a convex
-   quadratic in the edge parameter.
-5. Therefore only the first retained point from each direction can maximize
-   the distance on that edge.
-6. The two directional sweeps find those points, while the point-location
-   sweep includes all genuine Voronoi vertices inside the park.
-7. These are all possible maxima, so the largest recorded distance is the
-   required radius.
+The argument can be separated into four lemmas.
+
+### Lemma 1: Fortune's sweep constructs the Voronoi edges
+
+A site event inserts exactly the beach-line arc belonging to the new site and
+creates the two breakpoints between it and the split arc. A valid circle event
+occurs exactly when a middle arc shrinks to zero; it terminates its two
+incident breakpoints at the three sites' circumcenter and starts the
+breakpoint between the newly adjacent outer arcs. Lazy invalidation prevents
+events for obsolete triples from changing the beach line. Hence all and only
+Voronoi adjacencies and vertices are recorded.
+
+### Lemma 2: The candidate set contains an optimum
+
+Inside a Voronoi cell, the objective squared is distance squared to one fixed
+site. This convex function has a maximum on the boundary of the cell portion
+inside the park. Its restriction to every straight boundary piece is a convex
+quadratic, whose maximum is at an endpoint. Such endpoints are Voronoi
+vertices inside the park or Voronoi-edge/park-boundary intersections.
+
+### Lemma 3: The sweeps examine every necessary candidate
+
+The point-location sweep includes every genuine Voronoi vertex in the park.
+For a Voronoi edge, convexity means only the two extreme points of all
+inside-park portions can maximize the objective. If an extreme is a Voronoi
+endpoint, point location includes it; otherwise it is the first polygon
+crossing when scanning from that end. The forward and reflected sweeps find
+exactly these first crossings.
+
+### Theorem
+
+By Lemma 2, some optimum belongs to the candidate set. By Lemma 3, the
+algorithm evaluates every candidate needed to include that optimum. Each
+distance is measured to a generating site of the containing Voronoi edge or
+vertex, so it equals the nearest-site distance there. Therefore the largest
+recorded distance is exactly the required receiver radius.
 
 ## 7. Complexity
 
 Let `n` be the number of polygon vertices.
 
-- Fortune construction: `O(n log n)`.
-- Number of Voronoi edges and vertices: `O(n)`.
-- Sweep-line clipping and point location: `O(n log n)`.
-- Memory: `O(n)`.
+- Fortune processes `n` site events and `O(n)` valid circle events. Each queue
+  or AVL operation costs `O(log n)`, for `O(n log n)` time.
+- A planar Voronoi diagram has `O(n)` edges and vertices. Bounding-box
+  clipping takes constant work per edge.
+- Each clipping sweep has `O(n)` segment endpoint/removal events. Every event
+  performs `O(1)` set or queue operations, each costing `O(log n)`, for
+  `O(n log n)` time per sweep.
+- The point-location sweep sorts `O(n)` events and performs `O(n)` balanced
+  tree operations, also `O(n log n)`.
+- The event queues, beach line, Voronoi records, and active sets all use
+  `O(n)` memory.
 
 Overall:
 
