@@ -810,56 +810,8 @@ private:
     }
 };
 
-enum class SweepSegmentKind {
-    LowerBoundary,
-    UpperBoundary,
-    Voronoi,
-};
-
-struct SweepSegment {
-    std::size_t id;
-    Point start;
-    Point end;
-    SweepSegmentKind kind;
-    std::size_t site = 0;
-
-    Real yAt(Real x) const
-    {
-        if (start.x() == end.x()) {
-            return start.y();
-        }
-        return start.y() +
-               (end.y() - start.y()) *
-                   (x - start.x()) / (end.x() - start.x());
-    }
-};
-
-struct SweepSegmentLess {
-    bool operator()(const SweepSegment& left,
-                    const SweepSegment& right) const
-    {
-        if (left.id == right.id) {
-            return false;
-        }
-        const Real first_x = std::max(left.start.x(), right.start.x());
-        const Real first_difference =
-            left.yAt(first_x) - right.yAt(first_x);
-        if (std::abs(first_difference) > EPSILON) {
-            return first_difference < 0;
-        }
-
-        const Real last_x = std::min(left.end.x(), right.end.x());
-        const Real last_difference =
-            left.yAt(last_x) - right.yAt(last_x);
-        if (std::abs(last_difference) > EPSILON) {
-            return last_difference < 0;
-        }
-        return left.id < right.id;
-    }
-};
-
-std::optional<Point> segmentIntersection(const SweepSegment& first,
-                                         const SweepSegment& second)
+std::optional<Point> segmentIntersection(const Segment& first,
+                                         const Segment& second)
 {
     const Point first_direction = first.end - first.start;
     const Point second_direction = second.end - second.start;
@@ -883,14 +835,41 @@ std::optional<Point> segmentIntersection(const SweepSegment& first,
     return first.start + first_direction * first_parameter;
 }
 
-Point rotateForClipping(const Point& point)
+bool pointOnSegment(const Point& point, const Segment& segment)
 {
-    constexpr Real cosine = 0.9923888851137123702L;
-    constexpr Real sine = 0.1231434151823108666L;
-    return {
-        point.x() * cosine - point.y() * sine,
-        point.x() * sine + point.y() * cosine,
-    };
+    const Point direction = segment.end - segment.start;
+    if (std::abs(vectorCross(direction, point - segment.start)) >
+        EPSILON) {
+        return false;
+    }
+    return dot(point - segment.start, point - segment.end) <= EPSILON;
+}
+
+bool pointInPolygon(const Point& point,
+                    const std::vector<Point>& polygon)
+{
+    bool inside = false;
+    for (std::size_t index = 0; index < polygon.size(); ++index) {
+        const Segment edge{
+            polygon[index],
+            polygon[(index + 1) % polygon.size()]};
+        if (pointOnSegment(point, edge)) {
+            return true;
+        }
+        const Point& first = edge.start;
+        const Point& second = edge.end;
+        if ((first.y() > point.y()) != (second.y() > point.y())) {
+            const Real crossing_x =
+                first.x() +
+                (second.x() - first.x()) *
+                    (point.y() - first.y()) /
+                    (second.y() - first.y());
+            if (crossing_x > point.x()) {
+                inside = !inside;
+            }
+        }
+    }
+    return inside;
 }
 
 std::vector<VoronoiEdge> buildFortuneEdges(
@@ -911,258 +890,33 @@ std::vector<VoronoiEdge> buildFortuneEdges(
         .build();
 }
 
-std::vector<SweepSegment> makeSweepSegments(
-    const std::vector<Point>& polygon,
-    const std::vector<VoronoiEdge>& voronoi_edges)
-{
-    std::vector<SweepSegment> segments;
-    segments.reserve(polygon.size() + voronoi_edges.size());
-
-    for (std::size_t index = 0; index < polygon.size(); ++index) {
-        Point start = rotateForClipping(polygon[index]);
-        Point end =
-            rotateForClipping(polygon[(index + 1) % polygon.size()]);
-        const SweepSegmentKind kind =
-            start.x() < end.x()
-                ? SweepSegmentKind::LowerBoundary
-                : SweepSegmentKind::UpperBoundary;
-        if (start.x() > end.x()) {
-            std::swap(start, end);
-        }
-        segments.push_back({segments.size(), start, end, kind, 0});
-    }
-
-    for (const VoronoiEdge& edge : voronoi_edges) {
-        Point start = rotateForClipping(edge.segment.start);
-        Point end = rotateForClipping(edge.segment.end);
-        if (start.x() > end.x()) {
-            std::swap(start, end);
-        }
-        segments.push_back({
-            segments.size(), start, end,
-            SweepSegmentKind::Voronoi, edge.firstSite});
-    }
-    return segments;
-}
-
-enum class SweepEventKind {
-    Remove,
-    Add,
-    Crossing,
-};
-
-struct SweepEvent {
-    Real x;
-    SweepEventKind kind;
-    std::size_t first;
-    std::uint64_t sequence;
-};
-
-struct SweepEventAfter {
-    bool operator()(const SweepEvent& left,
-                    const SweepEvent& right) const
-    {
-        if (std::abs(left.x - right.x) > EPSILON) {
-            return left.x > right.x;
-        }
-        if (left.kind != right.kind) {
-            return left.kind > right.kind;
-        }
-        return left.sequence > right.sequence;
-    }
-};
-
-Real findExtremeIntersections(
-    std::vector<SweepSegment> segments,
-    std::vector<Point> sites, bool reverse)
-{
-    if (reverse) {
-        for (SweepSegment& segment : segments) {
-            segment.start.x() = -segment.start.x();
-            segment.end.x() = -segment.end.x();
-            std::swap(segment.start, segment.end);
-        }
-        for (Point& site : sites) {
-            site.x() = -site.x();
-        }
-    }
-
-    std::priority_queue<SweepEvent, std::vector<SweepEvent>,
-                        SweepEventAfter>
-        events;
-    std::uint64_t sequence = 0;
-    for (const SweepSegment& segment : segments) {
-        events.push({
-            segment.start.x(), SweepEventKind::Add, segment.id,
-            sequence++});
-        events.push({
-            segment.end.x(), SweepEventKind::Remove, segment.id,
-            sequence++});
-    }
-
-    std::set<SweepSegment, SweepSegmentLess> active;
-    Real answer_squared = 0.0L;
-
-    const auto schedule_crossing =
-        [&](const SweepSegment& first, const SweepSegment& second,
-            Real) {
-            if ((first.kind == SweepSegmentKind::Voronoi) ==
-                (second.kind == SweepSegmentKind::Voronoi)) {
-                return;
-            }
-            const auto intersection =
-                segmentIntersection(first, second);
-            if (!intersection.has_value()) {
-                return;
-            }
-            const SweepSegment& voronoi =
-                first.kind == SweepSegmentKind::Voronoi ? first : second;
-            answer_squared = std::max(
-                answer_squared,
-                squaredDistance(*intersection, sites[voronoi.site]));
-            events.push({
-                intersection->x(), SweepEventKind::Crossing,
-                voronoi.id, sequence++});
-        };
-
-    const auto schedule_neighbors =
-        [&](std::set<SweepSegment, SweepSegmentLess>::iterator iterator,
-            Real sweep_x) {
-            if (iterator != active.begin()) {
-                schedule_crossing(*std::prev(iterator), *iterator, sweep_x);
-            }
-            const auto next = std::next(iterator);
-            if (next != active.end()) {
-                schedule_crossing(*iterator, *next, sweep_x);
-            }
-        };
-
-    while (!events.empty()) {
-        const SweepEvent event = events.top();
-        events.pop();
-        const SweepSegment& segment = segments[event.first];
-
-        if (event.kind == SweepEventKind::Add) {
-            const auto [iterator, inserted] = active.insert(segment);
-            if (inserted) {
-                schedule_neighbors(iterator, event.x);
-            }
-            continue;
-        }
-
-        const auto iterator = active.find(segment);
-        if (iterator == active.end()) {
-            continue;
-        }
-
-        const auto previous =
-            iterator == active.begin() ? active.end()
-                                       : std::prev(iterator);
-        const auto next = std::next(iterator);
-        schedule_neighbors(iterator, event.x);
-        active.erase(iterator);
-        if (previous != active.end() && next != active.end()) {
-            schedule_crossing(*previous, *next, event.x);
-        }
-    }
-    return answer_squared;
-}
-
-Real findInteriorVoronoiVertices(
-    const std::vector<SweepSegment>& segments,
-    const std::vector<Point>& sites,
-    const std::vector<std::pair<Point, std::size_t>>& vertices,
-    std::size_t boundary_count)
-{
-    enum class EventKind {
-        Remove,
-        Add,
-        Query,
-    };
-    struct Event {
-        Real x;
-        EventKind kind;
-        std::size_t segment;
-        std::uint64_t sequence;
-    };
-
-    std::vector<Event> events;
-    events.reserve(boundary_count * 2 + vertices.size());
-    std::uint64_t sequence = 0;
-    for (std::size_t index = 0; index < boundary_count; ++index) {
-        events.push_back({
-            segments[index].start.x(), EventKind::Add, index,
-            sequence++});
-        events.push_back({
-            segments[index].end.x(), EventKind::Remove, index,
-            sequence++});
-    }
-    for (std::size_t index = 0; index < vertices.size(); ++index) {
-        events.push_back({
-            vertices[index].first.x(), EventKind::Query, index,
-            sequence++});
-    }
-    std::sort(events.begin(), events.end(),
-              [](const Event& left, const Event& right) {
-                  if (left.x != right.x) {
-                      return left.x < right.x;
-                  }
-                  if (left.kind != right.kind) {
-                      return left.kind < right.kind;
-                  }
-                  return left.sequence < right.sequence;
-              });
-
-    std::set<SweepSegment, SweepSegmentLess> active;
-    Real answer_squared = 0.0L;
-    for (const Event& event : events) {
-        if (event.kind == EventKind::Add) {
-            active.insert(segments[event.segment]);
-        } else if (event.kind == EventKind::Remove) {
-            active.erase(segments[event.segment]);
-        } else {
-            const auto& [point, site] = vertices[event.segment];
-            const SweepSegment query{
-                segments.size() + event.sequence,
-                point, point, SweepSegmentKind::Voronoi, site};
-            const auto above = active.lower_bound(query);
-            if (above != active.end() &&
-                above->kind == SweepSegmentKind::UpperBoundary) {
-                answer_squared = std::max(
-                    answer_squared,
-                    squaredDistance(point, sites[site]));
-            }
-        }
-    }
-    return answer_squared;
-}
-
 Real clipPolygon(const std::vector<VoronoiEdge>& voronoi_edges,
                  const std::vector<Point>& polygon)
 {
-    const std::vector<SweepSegment> segments =
-        makeSweepSegments(polygon, voronoi_edges);
-    std::vector<Point> rotated_sites;
-    rotated_sites.reserve(polygon.size());
-    for (const Point& point : polygon) {
-        rotated_sites.push_back(rotateForClipping(point));
-    }
-    std::vector<std::pair<Point, std::size_t>> vertices;
+    Real answer_squared = 0.0L;
     for (const VoronoiEdge& edge : voronoi_edges) {
         for (const Point& vertex : edge.vertices) {
-            vertices.emplace_back(
-                rotateForClipping(vertex), edge.firstSite);
+            if (pointInPolygon(vertex, polygon)) {
+                answer_squared = std::max(
+                    answer_squared,
+                    squaredDistance(vertex, polygon[edge.firstSite]));
+            }
+        }
+
+        for (std::size_t index = 0; index < polygon.size(); ++index) {
+            const Segment boundary{
+                polygon[index],
+                polygon[(index + 1) % polygon.size()]};
+            const auto intersection =
+                segmentIntersection(edge.segment, boundary);
+            if (intersection.has_value()) {
+                answer_squared = std::max(
+                    answer_squared,
+                    squaredDistance(*intersection,
+                                    polygon[edge.firstSite]));
+            }
         }
     }
-
-    Real answer_squared = findInteriorVoronoiVertices(
-        segments, rotated_sites, vertices, polygon.size());
-    answer_squared = std::max(
-        answer_squared,
-        findExtremeIntersections(segments, rotated_sites, false));
-    answer_squared = std::max(
-        answer_squared,
-        findExtremeIntersections(segments, rotated_sites, true));
     return answer_squared;
 }
 

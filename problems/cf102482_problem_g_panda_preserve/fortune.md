@@ -66,7 +66,8 @@ Consequently, an optimum occurs at one of:
    equivalently a Voronoi-edge/polygon-boundary intersection.
 
 The implementation first constructs the Voronoi diagram with Fortune's
-algorithm and then finds these candidates with sweep-line clipping.
+algorithm and then checks its vertices and its intersections with the polygon
+boundary.
 
 ![A rectangular park whose four corner sites produce a central Voronoi vertex,
 four boundary intersections, and an empty circle through every site](fortune-overview.svg)
@@ -94,10 +95,10 @@ linearly, while cross products scale quadratically.
 Input vertices are distinct integer points, but Voronoi vertices and
 intersections are generally non-integral.
 
-The later polygon-clipping sweeps use the fixed `EPSILON = 1e-9`. Distances
-are accumulated as squared distances and only the final answer is square
-rooted. Besides avoiding repeated square roots, this keeps comparisons
-monotone and slightly more stable.
+The later polygon clipping uses the fixed `EPSILON = 1e-9`. Distances are
+accumulated as squared distances and only the final answer is square rooted.
+Besides avoiding repeated square roots, this keeps comparisons monotone and
+slightly more stable.
 
 ## 3. Fortune Voronoi construction
 
@@ -461,7 +462,7 @@ slabs. An empty interval means the edge never reaches the box.
 polygon bounding box](fortune-edge-completion.svg)
 
 `completedBreakpoints` distinguishes a finite segment from a ray. The box
-turns either form into the bounded segment consumed by the later sweeps.
+turns either form into the bounded segment consumed by polygon clipping.
 
 The distinction between a segment and a ray appears explicitly in
 `clipEdge()`:
@@ -482,262 +483,56 @@ if (edge.completedBreakpoints >= 2U) {
 }
 ```
 
-## 4. `O(n log n)` polygon clipping
+## 4. Polygon clipping
 
-Enumerating every polygon/Voronoi intersection can take quadratic time. The
-implementation instead uses a sweep inspired by active-edge polygon clippers.
+A planar Voronoi diagram has only `O(n)` edges and vertices. With
+`n <= 2000`, the simplest reliable clipping stage is fast enough:
 
-### 4.1 Why only extreme intersections matter
+1. Test every genuine Voronoi vertex with ray-casting point-in-polygon.
+2. Intersect every clipped Voronoi edge with every polygon edge.
+3. Evaluate the distance at every retained candidate.
 
-Parameterize a Voronoi edge as
+Both operations take `O(n^2)` time. This avoids maintaining a geometric active
+set whose ordering changes at polygon/Voronoi crossings.
 
-```text
-p(t) = p0 + t * direction.
-```
-
-For either generating site `s`,
-
-```text
-distance(p(t), s)^2
-```
-
-is a convex quadratic in `t`. Even if a non-convex polygon intersects the edge
-in many disjoint intervals, the maximum over all retained intervals occurs at
-the globally smallest or largest retained parameter.
-
-Suppose the part of one Voronoi edge inside the non-convex polygon is a union
-of parameter intervals:
-
-```text
-[a1, b1] union [a2, b2] union ... union [ak, bk].
-```
-
-Convexity implies that the maximum over their union occurs at the globally
-smallest or globally largest retained parameter, namely `a1` or `bk` after
-sorting the intervals. It is therefore sufficient to find:
-
-- The first polygon crossing from the left endpoint.
-- The first polygon crossing from the right endpoint.
-- Any genuine Voronoi endpoint that lies inside the polygon.
-
-There is no need to enumerate intermediate crossings.
-
-If the bounded segment starts inside the polygon, its endpoint is a genuine
-Voronoi vertex and is covered by the point-location sweep. Otherwise, the
-first retained point is precisely the first boundary crossing. The symmetric
-argument applies at the other end.
-
-![A Voronoi edge crossing a non-convex polygon in two intervals, with only
-the outermost retained parameters highlighted](fortune-extremes.svg)
-
-The purple portions are inside the park. A forward sweep keeps only `a1`, and
-the reflected sweep keeps only `b2`. Since squared distance along the edge is
-convex, neither `b1` nor `a2` can improve on both extremes.
-
-### 4.2 Preparing sweep segments
-
-`makeSweepSegments()` converts polygon edges and Voronoi edges into
-`SweepSegment` objects.
-
-A fixed rotation gives the segments a generic sweep direction:
+`pointInPolygon()` treats boundary points as inside. For other points, it
+casts a horizontal ray and toggles containment at every polygon edge crossing:
 
 ```cpp
-Point rotateForClipping(const Point& point)
-{
-    constexpr Real cosine = 0.9923888851137123702L;
-    constexpr Real sine = 0.1231434151823108666L;
-    return {
-        point.x() * cosine - point.y() * sine,
-        point.x() * sine + point.y() * cosine,
-    };
+if ((first.y() > point.y()) != (second.y() > point.y())) {
+    const Real crossing_x =
+        first.x() +
+        (second.x() - first.x()) *
+            (point.y() - first.y()) /
+            (second.y() - first.y());
+    if (crossing_x > point.x()) {
+        inside = !inside;
+    }
 }
 ```
 
-This is the standard two-dimensional rotation
-
-```text
-x' = x cos(theta) - y sin(theta)
-y' = x sin(theta) + y cos(theta)
-```
-
-The angle is fixed and has no geometric significance. It avoids vertical input
-segments, which would otherwise need special cases in `yAt()` and the active
-segment comparator. Because the transformation is a rigid rotation, it
-preserves:
-
-- Distances, so the final answer is unchanged.
-- Orientation and incidence.
-- Segment intersections.
-- Whether a point lies inside the polygon.
-
-After rotation, every segment is normalized so that `start.x() < end.x()`.
-
-![A rigid rotation changing vertical segments into non-vertical sweep
-segments](fortune-rotation.svg)
-
-Only the coordinate frame changes. The geometric answer and all intersections
-stay the same, but the active-set code can evaluate every segment with one
-`yAt(x)` formula.
-
-Polygon edges are classified using their original direction:
-
-- `LowerBoundary`
-- `UpperBoundary`
-
-Voronoi segments also store one generating site so candidate distances can be
-evaluated in constant time.
-
-For the counterclockwise polygon order used by the problem, an edge directed
-left-to-right has polygon interior above it and is a `LowerBoundary`. An edge
-whose original direction is right-to-left is normalized by swapping its
-endpoints; its interior lies below it and it receives the `UpperBoundary`
-label. This label is later enough to answer point-location queries without
-counting all ray crossings.
-
-### 4.3 Active-edge ordering
-
-`SweepSegmentLess` orders active segments by their vertical positions over
-their common `x` interval. Polygon edges do not cross each other, and Voronoi
-edges do not cross each other except at shared endpoints. The only relevant
-order changes are polygon/Voronoi crossings.
-
-Each active segment can evaluate its height at the current horizontal
-position:
+For every Voronoi edge, `clipPolygon()` first checks its real circle-event
+vertices, excluding artificial bounding-box endpoints. It then tests the
+bounded edge segment against all polygon edges:
 
 ```cpp
-Real yAt(Real x) const
-{
-    return start.y() +
-           (end.y() - start.y()) *
-               (x - start.x()) / (end.x() - start.x());
-}
-```
-
-The comparator evaluates two segments at the beginning and end of their
-overlapping x-range. The stable `id` tie-break handles shared endpoints.
-
-This avoids storing a mutable global sweep coordinate inside the comparator,
-which would violate the ordering requirements of `std::set`. For segment
-pairs that cannot cross while simultaneously active, their order at the ends
-of the overlap determines a consistent ordering throughout the overlap.
-Polygon/Voronoi pairs are removed at their first crossing, before their order
-would reverse.
-
-### 4.4 Extreme-intersection sweeps
-
-`findExtremeIntersections()` processes:
-
-- Segment insertion events.
-- Segment removal events.
-- Polygon/Voronoi crossing events.
-
-Only adjacent active segments can be the next pair to cross. When an adjacent
-polygon/Voronoi pair intersects:
-
-1. Evaluate the distance from the intersection to the Voronoi edge's site.
-2. Schedule removal of that Voronoi segment at the crossing.
-
-Removing the Voronoi segment ensures that only its first crossing in the
-current direction is processed. The sweep runs twice:
-
-1. Original coordinates, finding one extreme.
-2. Reflected `x` coordinates, finding the opposite extreme.
-
-Events whose `x` coordinates differ by at most `EPSILON` are treated as
-simultaneous. Removal events run before insertion and crossing events to keep
-the active ordering valid at shared endpoints.
-
-At insertion, only the predecessor and successor can be the first segment
-crossed. At removal, those two neighbors become adjacent and are checked
-together. Thus each set update schedules only `O(1)` intersection tests.
-
-A crossing event is represented as removal of the Voronoi segment rather than
-an order swap because this pass needs only that segment's first crossing.
-Stale crossing or endpoint-removal events are harmless: `active.find()` fails
-after the segment has already been removed.
-
-Reflection for the second pass maps `x` to `-x`, then swaps each normalized
-segment's endpoints. The same left-to-right implementation consequently sees
-the original geometry from right to left.
-
-The key operation is `schedule_crossing`:
-
-```cpp
-const auto schedule_crossing =
-    [&](const SweepSegment& first, const SweepSegment& second, Real) {
-        if ((first.kind == SweepSegmentKind::Voronoi) ==
-            (second.kind == SweepSegmentKind::Voronoi)) {
-            return;
+for (const VoronoiEdge& edge : voronoi_edges) {
+    for (const Point& vertex : edge.vertices) {
+        if (pointInPolygon(vertex, polygon)) {
+            updateAnswer(vertex, edge.firstSite);
         }
-        const auto intersection = segmentIntersection(first, second);
-        if (!intersection.has_value()) {
-            return;
+    }
+    for (const Segment& boundary : polygon_edges) {
+        if (const auto intersection =
+                segmentIntersection(edge.segment, boundary)) {
+            updateAnswer(*intersection, edge.firstSite);
         }
-
-        const SweepSegment& voronoi =
-            first.kind == SweepSegmentKind::Voronoi ? first : second;
-        answer_squared = std::max(
-            answer_squared,
-            squaredDistance(*intersection, sites[voronoi.site]));
-
-        events.push({intersection->x(), SweepEventKind::Crossing,
-                     voronoi.id, sequence++});
-    };
-```
-
-A crossing event names the Voronoi segment. When processed, that segment is
-removed from the active set, so later crossings on the same directed scan are
-never generated.
-
-### 4.5 Voronoi-vertex point location
-
-`findInteriorVoronoiVertices()` performs a third offline sweep:
-
-1. Insert and remove polygon edges at their endpoint events.
-2. Query every genuine circle-event vertex.
-3. Find the first active polygon edge above the query.
-4. Use its `LowerBoundary`/`UpperBoundary` classification to determine whether
-   the query lies inside the polygon.
-
-Artificial endpoints introduced when unbounded Voronoi rays are clipped to
-the bounding box are deliberately excluded from these queries.
-
-![Inside and outside point-location queries classified by the first polygon
-edge above them](fortune-point-location.svg)
-
-The schematic uses screen coordinates, so increasing `y` is drawn downward.
-Its arrows show the direction searched by `active.lower_bound(query)`.
-
-Why does the first boundary above the query determine containment? On a
-vertical line through a point not on the boundary, polygon crossings alternate
-between entering and leaving the polygon. Above the highest interior interval
-there is no polygon. Moving downward across a boundary labeled
-`UpperBoundary` enters an interior interval, while crossing a `LowerBoundary`
-leaves one. Therefore a query lies inside exactly when the first edge above it
-has the `UpperBoundary` label.
-
-Boundary points are valid centers as well. The event ordering and epsilon
-tie-breaking retain them consistently; evaluating their distance again does
-not affect the maximum.
-
-For a query point, `lower_bound` finds the first boundary edge above it:
-
-```cpp
-const SweepSegment query{
-    segments.size() + event.sequence,
-    point, point, SweepSegmentKind::Voronoi, site};
-const auto above = active.lower_bound(query);
-
-if (above != active.end() &&
-    above->kind == SweepSegmentKind::UpperBoundary) {
-    answer_squared = std::max(
-        answer_squared, squaredDistance(point, sites[site]));
+    }
 }
 ```
 
-The polygon orientation and edge direction determine whether the region below
-that edge is interior. This replaces a separate `O(n)` point-in-polygon test
-for every Voronoi vertex.
+Every point on a Voronoi edge is nearest to either generating site, so storing
+one of those site indices is sufficient for evaluating the objective.
 
 ## 5. Final flow
 
@@ -751,33 +546,16 @@ run Fortune site/circle sweep
 clip Voronoi edges to polygon bounding box
         |
         v
-rotate polygon and Voronoi geometry
+test real Voronoi vertices for polygon containment
         |
-        +--> point-location sweep for real Voronoi vertices
-        |
-        +--> left-to-right first-crossing sweep
-        |
-        +--> right-to-left first-crossing sweep
+        v
+intersect every Voronoi edge with every polygon edge
         |
         v
 take the largest squared candidate distance
         |
         v
 print its square root
-```
-
-The coordinating functions are intentionally small. `clipPolygon()` combines
-the three independent candidate searches:
-
-```cpp
-Real answer_squared = findInteriorVoronoiVertices(
-    segments, rotated_sites, vertices, polygon.size());
-answer_squared = std::max(
-    answer_squared,
-    findExtremeIntersections(segments, rotated_sites, false));
-answer_squared = std::max(
-    answer_squared,
-    findExtremeIntersections(segments, rotated_sites, true));
 ```
 
 `main()` then shows the complete high-level solution:
@@ -805,7 +583,7 @@ int main()
 
 ## 6. Correctness outline
 
-The argument can be separated into four lemmas.
+The argument can be separated into three lemmas.
 
 ### Lemma 1: Fortune's sweep constructs the Voronoi edges
 
@@ -825,14 +603,11 @@ inside the park. Its restriction to every straight boundary piece is a convex
 quadratic, whose maximum is at an endpoint. Such endpoints are Voronoi
 vertices inside the park or Voronoi-edge/park-boundary intersections.
 
-### Lemma 3: The sweeps examine every necessary candidate
+### Lemma 3: Polygon clipping examines every necessary candidate
 
-The point-location sweep includes every genuine Voronoi vertex in the park.
-For a Voronoi edge, convexity means only the two extreme points of all
-inside-park portions can maximize the objective. If an extreme is a Voronoi
-endpoint, point location includes it; otherwise it is the first polygon
-crossing when scanning from that end. The forward and reflected sweeps find
-exactly these first crossings.
+Every genuine Voronoi vertex is tested for polygon containment. Every
+Voronoi-edge/polygon-boundary intersection is found by testing its pair of
+segments. Therefore every candidate described by Lemma 2 is evaluated.
 
 ### Theorem
 
@@ -850,17 +625,15 @@ Let `n` be the number of polygon vertices.
   or AVL operation costs `O(log n)`, for `O(n log n)` time.
 - A planar Voronoi diagram has `O(n)` edges and vertices. Bounding-box
   clipping takes constant work per edge.
-- Each clipping sweep has `O(n)` segment endpoint/removal events. Every event
-  performs `O(1)` set or queue operations, each costing `O(log n)`, for
-  `O(n log n)` time per sweep.
-- The point-location sweep sorts `O(n)` events and performs `O(n)` balanced
-  tree operations, also `O(n log n)`.
-- The event queues, beach line, Voronoi records, and active sets all use
-  `O(n)` memory.
+- Testing `O(n)` Voronoi vertices against an `n`-edge polygon takes
+  `O(n^2)` time.
+- Intersecting `O(n)` Voronoi edges with all `n` polygon edges also takes
+  `O(n^2)` time.
+- The event queue, beach line, and Voronoi records use `O(n)` memory.
 
 Overall:
 
 ```text
-Time:  O(n log n)
+Time:  O(n^2)
 Space: O(n)
 ```
