@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360" role="img" aria-labelledby="title desc">
+  <title id="title">Completion states of a Fortune Voronoi edge</title>
+  <desc id="desc">A finite edge has two completed breakpoints, an unbounded ray has one, and a transient adjacency with zero completed breakpoints is discarded.</desc>
+  <defs>
+    <marker id="ray-arrow" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto">
+      <path d="M0 0 L8 3.5 L0 7 Z" fill="#8250df"/>
+    </marker>
+    <style>
+      .heading { font: 700 17px sans-serif; fill: #24292f; }
+      .label { font: 15px sans-serif; fill: #24292f; }
+      .small { font: 14px sans-serif; fill: #57606a; }
+      .box { fill: #f6f8fa; stroke: #57606a; stroke-width: 2; stroke-dasharray: 7 5; }
+      .edge { stroke: #8250df; stroke-width: 4; fill: none; }
+      .vertex { fill: #bf8700; stroke: white; stroke-width: 2; }
+      .site { fill: #cf222e; stroke: white; stroke-width: 2; }
+      .discard { stroke: #cf222e; stroke-width: 5; }
+      .divider { stroke: #d0d7de; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="900" height="360" fill="#ffffff"/>
+  <line class="divider" x1="300" y1="18" x2="300" y2="338"/>
+  <line class="divider" x1="600" y1="18" x2="600" y2="338"/>
+
+  <text x="53" y="34" class="heading">Two completions: segment</text>
+  <rect class="box" x="42" y="66" width="216" height="190"/>
+  <line class="edge" x1="92" y1="214" x2="218" y2="108"/>
+  <circle class="vertex" cx="92" cy="214" r="8"/>
+  <circle class="vertex" cx="218" cy="108" r="8"/>
+  <circle class="site" cx="83" cy="104" r="7"/>
+  <circle class="site" cx="228" cy="217" r="7"/>
+  <text x="65" y="286" class="label">clip t in [0, 1]</text>
+  <text x="57" y="311" class="small">both endpoints are finite</text>
+
+  <text x="358" y="34" class="heading">One completion: ray</text>
+  <rect class="box" x="342" y="66" width="216" height="190"/>
+  <line class="edge" x1="392" y1="216" x2="545" y2="92" marker-end="url(#ray-arrow)"/>
+  <circle class="vertex" cx="392" cy="216" r="8"/>
+  <circle class="site" cx="378" cy="105" r="7"/>
+  <circle class="site" cx="526" cy="220" r="7"/>
+  <text x="356" y="286" class="label">clip t in [0, +infinity)</text>
+  <text x="348" y="311" class="small">orient the ray away from the</text>
+  <text x="392" y="331" class="small">opposite site</text>
+
+  <text x="640" y="34" class="heading">Zero completions</text>
+  <rect class="box" x="642" y="66" width="216" height="190"/>
+  <line class="edge" x1="674" y1="222" x2="827" y2="98"/>
+  <circle class="site" cx="678" cy="105" r="7"/>
+  <circle class="site" cx="826" cy="220" r="7"/>
+  <line class="discard" x1="704" y1="95" x2="800" y2="225"/>
+  <line class="discard" x1="800" y1="95" x2="704" y2="225"/>
+  <text x="673" y="286" class="label">discard the record</text>
+  <text x="634" y="311" class="small">no finite Voronoi vertex fixes a ray</text>
+</svg>

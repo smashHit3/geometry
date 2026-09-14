@@ -68,6 +68,15 @@ Consequently, an optimum occurs at one of:
 The implementation first constructs the Voronoi diagram with Fortune's
 algorithm and then finds these candidates with sweep-line clipping.
 
+![A rectangular park whose four corner sites produce a central Voronoi vertex,
+four boundary intersections, and an empty circle through every site](fortune-overview.svg)
+
+The red corners are both polygon vertices and Voronoi sites. Purple dashed
+segments separate the four shaded Voronoi cells. Gold points are
+edge/boundary intersections, while the blue center is an interior Voronoi
+vertex. In this exact example, the blue circle is centered at the answer and
+passes through all four sites.
+
 ## 2. Numeric representation
 
 All geometric calculations use `long double` through the `Real` alias.
@@ -101,6 +110,14 @@ points not reached by the sweep. The lower envelope of those parabolas is the
 Each maximal parabola portion on the envelope is an arc. A breakpoint between
 two neighboring arcs traces a Voronoi edge because every point on it is
 equidistant from the two corresponding sites.
+
+![A site event splitting a beach-line arc and a circle event removing an
+arc](fortune-events.svg)
+
+The left panel shows the `old, new, old` beach-line replacement at a site
+event. The right panel shows three sites becoming cocircular: the middle arc
+shrinks to zero, its two breakpoints meet at a Voronoi vertex, and the outer
+arcs become adjacent.
 
 ### 3.1 Events
 
@@ -195,6 +212,13 @@ struct Arc {
     Event* circle = nullptr;
 };
 ```
+
+![The same beach-line arcs stored in geometric linked-list order and in an
+AVL search tree](fortune-beach-line.svg)
+
+The linked list makes local event updates explicit, while the AVL tree finds
+the arc above a site's `x` coordinate in logarithmic time. Both structures
+contain pointers to the same stable `Arc` objects.
 
 The search itself is a normal binary-tree descent, except that the key is a
 moving parabola breakpoint:
@@ -433,6 +457,12 @@ parameter interval (`[0, 1]` for a segment or `[0, +infinity)` for a ray) and
 intersects it with the parameter intervals imposed by the box's `x` and `y`
 slabs. An empty interval means the edge never reaches the box.
 
+![Finite, ray, and incomplete Voronoi edge records clipped against the
+polygon bounding box](fortune-edge-completion.svg)
+
+`completedBreakpoints` distinguishes a finite segment from a ray. The box
+turns either form into the bounded segment consumed by the later sweeps.
+
 The distinction between a segment and a ray appears explicitly in
 `clipEdge()`:
 
@@ -497,6 +527,13 @@ Voronoi vertex and is covered by the point-location sweep. Otherwise, the
 first retained point is precisely the first boundary crossing. The symmetric
 argument applies at the other end.
 
+![A Voronoi edge crossing a non-convex polygon in two intervals, with only
+the outermost retained parameters highlighted](fortune-extremes.svg)
+
+The purple portions are inside the park. A forward sweep keeps only `a1`, and
+the reflected sweep keeps only `b2`. Since squared distance along the edge is
+convex, neither `b1` nor `a2` can improve on both extremes.
+
 ### 4.2 Preparing sweep segments
 
 `makeSweepSegments()` converts polygon edges and Voronoi edges into
@@ -534,6 +571,13 @@ preserves:
 - Whether a point lies inside the polygon.
 
 After rotation, every segment is normalized so that `start.x() < end.x()`.
+
+![A rigid rotation changing vertical segments into non-vertical sweep
+segments](fortune-rotation.svg)
+
+Only the coordinate frame changes. The geometric answer and all intersections
+stay the same, but the active-set code can evaluate every segment with one
+`yAt(x)` formula.
 
 Polygon edges are classified using their original direction:
 
@@ -657,6 +701,12 @@ never generated.
 
 Artificial endpoints introduced when unbounded Voronoi rays are clipped to
 the bounding box are deliberately excluded from these queries.
+
+![Inside and outside point-location queries classified by the first polygon
+edge above them](fortune-point-location.svg)
+
+The schematic uses screen coordinates, so increasing `y` is drawn downward.
+Its arrows show the direction searched by `active.lower_bound(query)`.
 
 Why does the first boundary above the query determine containment? On a
 vertical line through a point not on the boundary, polygon crossings alternate

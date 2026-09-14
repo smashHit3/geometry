@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" role="img" aria-labelledby="title desc">
+  <title id="title">Site and circle events in Fortune's algorithm</title>
+  <desc id="desc">The left panel shows a site event splitting one beach-line arc into three. The right panel shows a circle event removing the middle arc at a circumcenter.</desc>
+  <defs>
+    <style>
+      .heading { font: 700 18px sans-serif; fill: #24292f; }
+      .label { font: 15px sans-serif; fill: #24292f; }
+      .muted { font: 14px sans-serif; fill: #57606a; }
+      .directrix { stroke: #cf222e; stroke-width: 3; stroke-dasharray: 10 7; }
+      .arc-a { fill: none; stroke: #0969da; stroke-width: 4; }
+      .arc-b { fill: none; stroke: #8250df; stroke-width: 4; }
+      .arc-c { fill: none; stroke: #1a7f37; stroke-width: 4; }
+      .site { fill: #cf222e; stroke: white; stroke-width: 2; }
+      .center { fill: #bf8700; stroke: white; stroke-width: 2; }
+      .circle { fill: none; stroke: #bf8700; stroke-width: 2; stroke-dasharray: 7 6; }
+      .trace { fill: none; stroke: #57606a; stroke-width: 2; stroke-dasharray: 5 5; }
+      .divider { stroke: #d0d7de; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="900" height="430" fill="#ffffff"/>
+  <line class="divider" x1="450" y1="24" x2="450" y2="406"/>
+
+  <text x="28" y="35" class="heading">Site event: split one arc</text>
+  <line class="directrix" x1="28" y1="330" x2="420" y2="330"/>
+  <text x="32" y="354" class="muted">directrix</text>
+
+  <path class="arc-a" d="M40 248 Q142 52 244 248"/>
+  <path class="arc-b" d="M175 248 Q244 160 313 248"/>
+  <path class="arc-a" d="M244 248 Q326 82 408 248"/>
+  <circle class="site" cx="142" cy="150" r="7"/>
+  <circle class="site" cx="244" cy="248" r="7"/>
+  <text x="124" y="137" class="label">old site</text>
+  <text x="254" y="270" class="label">new site</text>
+
+  <circle cx="196" cy="224" r="5" fill="#24292f"/>
+  <circle cx="292" cy="214" r="5" fill="#24292f"/>
+  <path class="trace" d="M196 224 L176 332"/>
+  <path class="trace" d="M292 214 L315 332"/>
+  <text x="105" y="388" class="label">old - new - old</text>
+  <text x="92" y="409" class="muted">two breakpoints start one bisector</text>
+
+  <text x="478" y="35" class="heading">Circle event: remove middle arc</text>
+  <line class="directrix" x1="478" y1="275" x2="872" y2="275"/>
+  <text x="482" y="299" class="muted">event y = center.y - radius</text>
+
+  <circle class="circle" cx="675" cy="174" r="101"/>
+  <circle class="site" cx="590" cy="120" r="7"/>
+  <circle class="site" cx="675" cy="73" r="7"/>
+  <circle class="site" cx="760" cy="120" r="7"/>
+  <text x="578" y="105" class="label">a</text>
+  <text x="670" y="57" class="label">b</text>
+  <text x="765" y="105" class="label">c</text>
+
+  <path class="arc-a" d="M492 272 Q575 126 642 259"/>
+  <path class="arc-b" d="M642 259 Q675 208 708 259"/>
+  <path class="arc-c" d="M708 259 Q775 126 858 272"/>
+  <circle class="center" cx="675" cy="174" r="8"/>
+  <line class="trace" x1="642" y1="259" x2="675" y2="174"/>
+  <line class="trace" x1="708" y1="259" x2="675" y2="174"/>
+  <text x="688" y="169" class="label">Voronoi vertex</text>
+  <text x="574" y="335" class="label">arc b shrinks to zero;</text>
+  <text x="574" y="357" class="label">a and c become adjacent</text>
+</svg>

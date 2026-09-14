@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="350" viewBox="0 0 900 350" role="img" aria-labelledby="title desc">
+  <title id="title">Fixed rotation before the clipping sweep</title>
+  <desc id="desc">The same polygon and segments appear before and after a rigid rotation. Vertical segments become non-vertical while distances and intersections remain unchanged.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" orient="auto">
+      <path d="M0 0 L9 4 L0 8 Z" fill="#0969da"/>
+    </marker>
+    <style>
+      .heading { font: 700 18px sans-serif; fill: #24292f; }
+      .label { font: 15px sans-serif; fill: #24292f; }
+      .small { font: 14px sans-serif; fill: #57606a; }
+      .park { fill: #dafbe1; stroke: #1a7f37; stroke-width: 4; stroke-linejoin: round; }
+      .segment { stroke: #8250df; stroke-width: 4; stroke-dasharray: 8 6; }
+      .vertical { stroke: #cf222e; stroke-width: 6; }
+      .rotation { fill: none; stroke: #0969da; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="900" height="350" fill="#ffffff"/>
+  <text x="93" y="35" class="heading">Original coordinates</text>
+  <text x="605" y="35" class="heading">After fixed rotation</text>
+
+  <g>
+    <path class="park" d="M75 84 L300 84 L300 250 L180 292 L75 230 Z"/>
+    <line class="segment" x1="185" y1="60" x2="185" y2="305"/>
+    <line class="vertical" x1="300" y1="84" x2="300" y2="250"/>
+    <text x="88" y="326" class="small">vertical input requires a yAt special case</text>
+  </g>
+
+  <path class="rotation" d="M388 208 Q450 112 512 208"/>
+  <text x="415" y="120" class="label">rotate</text>
+
+  <g transform="rotate(7 690 185)">
+    <path class="park" d="M575 84 L800 84 L800 250 L680 292 L575 230 Z"/>
+    <line class="segment" x1="685" y1="60" x2="685" y2="305"/>
+    <line x1="800" y1="84" x2="800" y2="250" stroke="#0969da" stroke-width="6"/>
+  </g>
+
+  <text x="582" y="326" class="small">no segment is vertical in sweep coordinates</text>
+  <text x="329" y="344" class="small">Rigid rotation preserves distance, orientation, incidence, and intersections.</text>
+</svg>

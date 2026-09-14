@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500" role="img" aria-labelledby="title desc">
+  <title id="title">Beach line represented by a linked list and an AVL tree</title>
+  <desc id="desc">Three parabola arcs appear in geometric order above a directrix. The same arc objects form a doubly linked list and a balanced binary search tree.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 Z" fill="#57606a"/>
+    </marker>
+    <style>
+      .heading { font: 700 18px sans-serif; fill: #24292f; }
+      .label { font: 15px sans-serif; fill: #24292f; }
+      .small { font: 14px sans-serif; fill: #57606a; }
+      .arc-a { fill: none; stroke: #0969da; stroke-width: 4; }
+      .arc-b { fill: none; stroke: #8250df; stroke-width: 4; }
+      .arc-c { fill: none; stroke: #1a7f37; stroke-width: 4; }
+      .directrix { stroke: #cf222e; stroke-width: 3; stroke-dasharray: 10 7; }
+      .site { fill: #cf222e; stroke: white; stroke-width: 2; }
+      .breakpoint { fill: #bf8700; stroke: white; stroke-width: 2; }
+      .node { fill: #f6f8fa; stroke: #57606a; stroke-width: 2; rx: 8; }
+      .link { fill: none; stroke: #57606a; stroke-width: 2; marker-end: url(#arrow); }
+      .tree { fill: none; stroke: #57606a; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect width="900" height="500" fill="#ffffff"/>
+  <text x="28" y="34" class="heading">One beach line, two synchronized representations</text>
+
+  <path class="arc-a" d="M35 210 Q162 20 282 170"/>
+  <path class="arc-b" d="M282 170 Q420 24 552 174"/>
+  <path class="arc-c" d="M552 174 Q704 8 865 210"/>
+  <circle class="site" cx="175" cy="111" r="7"/>
+  <circle class="site" cx="420" cy="125" r="7"/>
+  <circle class="site" cx="700" cy="101" r="7"/>
+  <text x="153" y="96" class="label">site A</text>
+  <text x="398" y="110" class="label">site B</text>
+  <text x="708" y="88" class="label">site C</text>
+
+  <circle class="breakpoint" cx="282" cy="170" r="7"/>
+  <circle class="breakpoint" cx="552" cy="174" r="7"/>
+  <text x="246" y="153" class="small">breakpoint</text>
+  <text x="558" y="160" class="small">breakpoint</text>
+
+  <line class="directrix" x1="28" y1="230" x2="872" y2="230"/>
+  <text x="33" y="252" class="small">current directrix</text>
+
+  <text x="38" y="296" class="heading">Linked-list order</text>
+  <rect class="node" x="60" y="320" width="130" height="54"/>
+  <rect class="node" x="250" y="320" width="130" height="54"/>
+  <rect class="node" x="440" y="320" width="130" height="54"/>
+  <text x="108" y="353" class="label">arc A</text>
+  <text x="298" y="353" class="label">arc B</text>
+  <text x="488" y="353" class="label">arc C</text>
+  <path class="link" d="M190 338 L246 338"/>
+  <path class="link" d="M250 358 L194 358"/>
+  <path class="link" d="M380 338 L436 338"/>
+  <path class="link" d="M440 358 L384 358"/>
+  <text x="58" y="397" class="small">O(1) previous/next neighborhood updates</text>
+
+  <text x="645" y="296" class="heading">AVL search</text>
+  <path class="tree" d="M750 344 L690 414 M750 344 L810 414"/>
+  <rect class="node" x="705" y="318" width="90" height="48"/>
+  <rect class="node" x="645" y="398" width="90" height="48"/>
+  <rect class="node" x="765" y="398" width="90" height="48"/>
+  <text x="724" y="348" class="label">arc B</text>
+  <text x="664" y="428" class="label">arc A</text>
+  <text x="784" y="428" class="label">arc C</text>
+  <text x="644" y="476" class="small">O(log n) findArcAbove(x)</text>
+</svg>

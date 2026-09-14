@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" role="img" aria-labelledby="title desc">
+  <title id="title">Voronoi candidates in a rectangular park</title>
+  <desc id="desc">Four polygon vertices are Voronoi sites. Their cells meet at the park center, where an empty circle touches all four sites. Voronoi edges also meet the park boundary at four candidate points.</desc>
+  <defs>
+    <style>
+      .heading { font-family: sans-serif; font-size: 19px; font-weight: 700; fill: #24292f; }
+      .label { font-family: sans-serif; font-size: 16px; fill: #24292f; }
+      .small { font-family: sans-serif; font-size: 14px; fill: #57606a; }
+      .park { fill: #dafbe1; stroke: #1a7f37; stroke-width: 4; }
+      .cell-a { fill: #ddf4ff; fill-opacity: .42; }
+      .cell-b { fill: #fbefff; fill-opacity: .42; }
+      .circle { fill: none; stroke: #0969da; stroke-width: 3; }
+      .radius { stroke: #0969da; stroke-width: 2.5; }
+      .voronoi { stroke: #8250df; stroke-width: 4; stroke-dasharray: 10 7; }
+      .site { fill: #cf222e; stroke: white; stroke-width: 3; }
+      .candidate { fill: #bf8700; stroke: white; stroke-width: 3; }
+      .center { fill: #0969da; stroke: white; stroke-width: 3; }
+      .leader { fill: none; stroke: #57606a; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="900" height="500" fill="#ffffff"/>
+  <text x="28" y="36" class="heading">Where the maximum can occur</text>
+
+  <!-- The circle is exact: center (450, 250), radius sqrt(200^2 + 100^2). -->
+  <g transform="translate(0 20)">
+  <rect class="park" x="250" y="150" width="400" height="200"/>
+  <rect class="cell-a" x="250" y="150" width="200" height="100"/>
+  <rect class="cell-b" x="450" y="150" width="200" height="100"/>
+  <rect class="cell-b" x="250" y="250" width="200" height="100"/>
+  <rect class="cell-a" x="450" y="250" width="200" height="100"/>
+
+  <circle class="circle" cx="450" cy="250" r="223.6068"/>
+  <line class="radius" x1="450" y1="250" x2="650" y2="150"/>
+  <text x="548" y="189" class="label" fill="#0969da">R</text>
+
+  <line class="voronoi" x1="250" y1="250" x2="650" y2="250"/>
+  <line class="voronoi" x1="450" y1="150" x2="450" y2="350"/>
+
+  <circle class="site" cx="250" cy="150" r="9"/>
+  <circle class="site" cx="650" cy="150" r="9"/>
+  <circle class="site" cx="650" cy="350" r="9"/>
+  <circle class="site" cx="250" cy="350" r="9"/>
+
+  <circle class="candidate" cx="450" cy="150" r="8"/>
+  <circle class="candidate" cx="650" cy="250" r="8"/>
+  <circle class="candidate" cx="450" cy="350" r="8"/>
+  <circle class="candidate" cx="250" cy="250" r="8"/>
+  <circle class="center" cx="450" cy="250" r="10"/>
+
+  <path class="leader" d="M460 244 L680 120"/>
+  <text x="690" y="112" class="label">interior Voronoi vertex</text>
+  <text x="690" y="133" class="small">optimal center in this example</text>
+
+  <path class="leader" d="M650 250 L680 250"/>
+  <text x="690" y="245" class="label">boundary intersection</text>
+  <text x="690" y="266" class="small">also a candidate</text>
+
+  <text x="690" y="326" class="small">The circle may leave the park;</text>
+  <text x="690" y="347" class="small">its center must stay inside.</text>
+  </g>
+</svg>
