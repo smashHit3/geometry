@@ -483,6 +483,40 @@ if (edge.completedBreakpoints >= 2U) {
 }
 ```
 
+### 3.6 DCEL representation
+
+The completed edges are converted to a doubly connected edge list. `Dcel`
+owns three indexed arrays:
+
+- `Vertex`: coordinates, one incident half-edge, and whether the point is a
+  genuine circle-event vertex.
+- `HalfEdge`: origin, twin, next, previous, incident face, and an edge-kind
+  flag.
+- `Face`: the generating site and one incident half-edge.
+
+Every geometric Voronoi edge creates two oppositely directed half-edges. The
+edge is oriented so that its first site's face lies to its left:
+
+```cpp
+if (vectorCross(end - start, sites[left_face] - start) < 0.0L) {
+    std::swap(start, end);
+    std::swap(left_face, right_face);
+}
+diagram.addEdge(
+    start_vertex, end_vertex, left_face, right_face, true);
+```
+
+`addVertex()` merges coincident endpoints, so all edges meeting at one
+Voronoi vertex share the same vertex record. `addEdge()` installs the twin
+relationship immediately and initializes the incident vertex and face links.
+
+After all edges have been inserted, `linkFaceBoundaries()` connects an
+incoming half-edge to the outgoing half-edge with the same incident face.
+Edges truncated by the bounding box can have no represented continuation;
+their `next` or `previous` field remains `Dcel::INVALID`. This keeps the DCEL
+focused on the Voronoi subdivision while explicitly representing its clipped
+open boundary.
+
 ## 4. Polygon clipping
 
 A planar Voronoi diagram has only `O(n)` edges and vertices. With
@@ -511,23 +545,25 @@ if ((first.y() > point.y()) != (second.y() > point.y())) {
 }
 ```
 
-For every Voronoi edge, `clipPolygon()` first checks its real circle-event
-vertices, excluding artificial bounding-box endpoints. It then tests the
-bounded edge segment against all polygon edges:
+`clipPolygon()` first checks the DCEL vertices marked as real circle-event
+vertices, excluding artificial bounding-box endpoints. It then visits one
+half-edge from each twin pair and tests its bounded segment against all
+polygon edges:
 
 ```cpp
-for (const VoronoiEdge& edge : voronoi_edges) {
-    for (const Point& vertex : edge.vertices) {
-        if (pointInPolygon(vertex, polygon)) {
-            updateAnswer(vertex, edge.firstSite);
-        }
+for (const Dcel::Vertex& vertex : diagram.vertices()) {
+    if (vertex.isVoronoiVertex &&
+        pointInPolygon(vertex.point, polygon)) {
+        updateAnswer(vertex);
     }
-    for (const Segment& boundary : polygon_edges) {
-        if (const auto intersection =
-                segmentIntersection(edge.segment, boundary)) {
-            updateAnswer(*intersection, edge.firstSite);
-        }
+}
+for (std::size_t index = 0;
+     index < diagram.halfEdges().size(); ++index) {
+    const Dcel::HalfEdge& edge = diagram.halfEdges()[index];
+    if (!edge.isVoronoiEdge || index > edge.twin) {
+        continue;
     }
+    intersectWithPolygonBoundary(edge);
 }
 ```
 
@@ -544,6 +580,9 @@ run Fortune site/circle sweep
         |
         v
 clip Voronoi edges to polygon bounding box
+        |
+        v
+build shared DCEL vertices, twin half-edges, and site faces
         |
         v
 test real Voronoi vertices for polygon containment
@@ -571,10 +610,10 @@ int main()
         std::cin >> point.x() >> point.y();
     }
 
-    const std::vector<VoronoiEdge> voronoi_edges =
-        buildFortuneEdges(polygon);
+    const Dcel voronoi_diagram =
+        buildFortuneDiagram(polygon);
     const Real maximum_squared_radius =
-        clipPolygon(voronoi_edges, polygon);
+        clipPolygon(voronoi_diagram, polygon);
 
     std::cout << std::setprecision(12)
               << std::sqrt(maximum_squared_radius) << '\n';
@@ -624,12 +663,13 @@ Let `n` be the number of polygon vertices.
 - Fortune processes `n` site events and `O(n)` valid circle events. Each queue
   or AVL operation costs `O(log n)`, for `O(n log n)` time.
 - A planar Voronoi diagram has `O(n)` edges and vertices. Bounding-box
-  clipping takes constant work per edge.
+  clipping and DCEL construction take linear space. Endpoint merging is
+  implemented by a linear scan, so it takes `O(n^2)` time in the worst case.
 - Testing `O(n)` Voronoi vertices against an `n`-edge polygon takes
   `O(n^2)` time.
 - Intersecting `O(n)` Voronoi edges with all `n` polygon edges also takes
   `O(n^2)` time.
-- The event queue, beach line, and Voronoi records use `O(n)` memory.
+- The event queue, beach line, Voronoi records, and DCEL use `O(n)` memory.
 
 Overall:
 

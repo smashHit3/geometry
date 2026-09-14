@@ -3,14 +3,12 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
-#include <iterator>
 #include <limits>
 #include <list>
 #include <map>
 #include <memory>
 #include <optional>
 #include <queue>
-#include <set>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -107,6 +105,113 @@ struct VoronoiEdge {
     std::size_t secondSite;
     Segment segment;
     std::vector<Point> vertices;
+};
+
+class Dcel {
+public:
+    static constexpr std::size_t INVALID =
+        std::numeric_limits<std::size_t>::max();
+
+    struct Vertex {
+        Point point;
+        std::size_t incidentHalfEdge = INVALID;
+        bool isVoronoiVertex = false;
+    };
+
+    struct HalfEdge {
+        std::size_t origin = INVALID;
+        std::size_t twin = INVALID;
+        std::size_t next = INVALID;
+        std::size_t previous = INVALID;
+        std::size_t face = INVALID;
+        bool isVoronoiEdge = false;
+    };
+
+    struct Face {
+        std::size_t site = INVALID;
+        std::size_t incidentHalfEdge = INVALID;
+    };
+
+    explicit Dcel(std::size_t site_count)
+    {
+        faces_.reserve(site_count);
+        for (std::size_t site = 0; site < site_count; ++site) {
+            faces_.push_back({site, INVALID});
+        }
+    }
+
+    std::size_t addVertex(const Point& point, bool is_voronoi_vertex)
+    {
+        for (std::size_t index = 0; index < vertices_.size(); ++index) {
+            if (squaredDistance(vertices_[index].point, point) <=
+                EPSILON * EPSILON) {
+                vertices_[index].isVoronoiVertex |= is_voronoi_vertex;
+                return index;
+            }
+        }
+        vertices_.push_back({point, INVALID, is_voronoi_vertex});
+        return vertices_.size() - 1;
+    }
+
+    void addEdge(std::size_t start, std::size_t end,
+                 std::size_t left_face, std::size_t right_face,
+                 bool is_voronoi_edge)
+    {
+        if (start == end) {
+            return;
+        }
+        const std::size_t forward = half_edges_.size();
+        const std::size_t backward = forward + 1;
+        half_edges_.push_back({
+            start, backward, INVALID, INVALID, left_face,
+            is_voronoi_edge});
+        half_edges_.push_back({
+            end, forward, INVALID, INVALID, right_face,
+            is_voronoi_edge});
+
+        if (vertices_[start].incidentHalfEdge == INVALID) {
+            vertices_[start].incidentHalfEdge = forward;
+        }
+        if (vertices_[end].incidentHalfEdge == INVALID) {
+            vertices_[end].incidentHalfEdge = backward;
+        }
+        if (faces_[left_face].incidentHalfEdge == INVALID) {
+            faces_[left_face].incidentHalfEdge = forward;
+        }
+        if (faces_[right_face].incidentHalfEdge == INVALID) {
+            faces_[right_face].incidentHalfEdge = backward;
+        }
+    }
+
+    void linkFaceBoundaries()
+    {
+        std::vector<std::vector<std::size_t>> outgoing(vertices_.size());
+        for (std::size_t edge = 0; edge < half_edges_.size(); ++edge) {
+            outgoing[half_edges_[edge].origin].push_back(edge);
+        }
+
+        for (std::size_t edge = 0; edge < half_edges_.size(); ++edge) {
+            const std::size_t destination =
+                half_edges_[half_edges_[edge].twin].origin;
+            for (const std::size_t candidate : outgoing[destination]) {
+                if (half_edges_[candidate].face ==
+                    half_edges_[edge].face) {
+                    half_edges_[edge].next = candidate;
+                    half_edges_[candidate].previous = edge;
+                    break;
+                }
+            }
+        }
+    }
+
+    const std::vector<Vertex>& vertices() const { return vertices_; }
+    const std::vector<HalfEdge>& halfEdges() const { return half_edges_; }
+    const std::vector<Face>& faces() const { return faces_; }
+
+private:
+    std::vector<Vertex> vertices_;
+    std::vector<HalfEdge> half_edges_;
+    std::vector<Face> faces_;
 };
 
 class FortuneVoronoiBuilder {
@@ -872,8 +977,7 @@ bool pointInPolygon(const Point& point,
     return inside;
 }
 
-std::vector<VoronoiEdge> buildFortuneEdges(
-    const std::vector<Point>& sites)
+Aabb siteBounds(const std::vector<Point>& sites)
 {
     Real minimum_x = std::numeric_limits<Real>::infinity();
     Real minimum_y = std::numeric_limits<Real>::infinity();
@@ -885,35 +989,86 @@ std::vector<VoronoiEdge> buildFortuneEdges(
         maximum_x = std::max(maximum_x, site.x());
         maximum_y = std::max(maximum_y, site.y());
     }
-    return FortuneVoronoiBuilder(
-               sites, Aabb{minimum_x, minimum_y, maximum_x, maximum_y})
-        .build();
+    return {minimum_x, minimum_y, maximum_x, maximum_y};
 }
 
-Real clipPolygon(const std::vector<VoronoiEdge>& voronoi_edges,
+bool containsPoint(const std::vector<Point>& points, const Point& point)
+{
+    return std::any_of(
+        points.begin(), points.end(), [&](const Point& candidate) {
+            return squaredDistance(candidate, point) <= EPSILON * EPSILON;
+        });
+}
+
+Dcel buildFortuneDiagram(const std::vector<Point>& sites)
+{
+    const Aabb bounds = siteBounds(sites);
+    const std::vector<VoronoiEdge> edges =
+        FortuneVoronoiBuilder(sites, bounds).build();
+
+    Dcel diagram(sites.size());
+    for (const VoronoiEdge& edge : edges) {
+        Point start = edge.segment.start;
+        Point end = edge.segment.end;
+        std::size_t left_face = edge.firstSite;
+        std::size_t right_face = edge.secondSite;
+        if (vectorCross(end - start, sites[left_face] - start) < 0.0L) {
+            std::swap(start, end);
+            std::swap(left_face, right_face);
+        }
+
+        const std::size_t start_vertex =
+            diagram.addVertex(
+                start, containsPoint(edge.vertices, start));
+        const std::size_t end_vertex =
+            diagram.addVertex(
+                end, containsPoint(edge.vertices, end));
+        diagram.addEdge(
+            start_vertex, end_vertex, left_face, right_face, true);
+    }
+
+    diagram.linkFaceBoundaries();
+    return diagram;
+}
+
+Real clipPolygon(const Dcel& diagram,
                  const std::vector<Point>& polygon)
 {
     Real answer_squared = 0.0L;
-    for (const VoronoiEdge& edge : voronoi_edges) {
-        for (const Point& vertex : edge.vertices) {
-            if (pointInPolygon(vertex, polygon)) {
-                answer_squared = std::max(
-                    answer_squared,
-                    squaredDistance(vertex, polygon[edge.firstSite]));
-            }
+    for (const Dcel::Vertex& vertex : diagram.vertices()) {
+        if (vertex.isVoronoiVertex &&
+            pointInPolygon(vertex.point, polygon)) {
+            const Dcel::HalfEdge& incident =
+                diagram.halfEdges()[vertex.incidentHalfEdge];
+            answer_squared = std::max(
+                answer_squared,
+                squaredDistance(
+                    vertex.point,
+                    polygon[diagram.faces()[incident.face].site]));
         }
+    }
 
+    const std::vector<Dcel::HalfEdge>& half_edges = diagram.halfEdges();
+    for (std::size_t edge_index = 0;
+         edge_index < half_edges.size(); ++edge_index) {
+        const Dcel::HalfEdge& edge = half_edges[edge_index];
+        if (!edge.isVoronoiEdge || edge_index > edge.twin) {
+            continue;
+        }
+        const Segment voronoi_edge{
+            diagram.vertices()[edge.origin].point,
+            diagram.vertices()[half_edges[edge.twin].origin].point};
         for (std::size_t index = 0; index < polygon.size(); ++index) {
             const Segment boundary{
                 polygon[index],
                 polygon[(index + 1) % polygon.size()]};
             const auto intersection =
-                segmentIntersection(edge.segment, boundary);
+                segmentIntersection(voronoi_edge, boundary);
             if (intersection.has_value()) {
                 answer_squared = std::max(
                     answer_squared,
                     squaredDistance(*intersection,
-                                    polygon[edge.firstSite]));
+                                    polygon[diagram.faces()[edge.face].site]));
             }
         }
     }
@@ -935,11 +1090,10 @@ int main()
         std::cin >> point.x() >> point.y();
     }
 
-    const std::vector<VoronoiEdge> voronoi_edges =
-        buildFortuneEdges(polygon);
+    const Dcel voronoi_diagram = buildFortuneDiagram(polygon);
 
     const Real maximum_squared_radius =
-        clipPolygon(voronoi_edges, polygon);
+        clipPolygon(voronoi_diagram, polygon);
 
     std::cout << std::setprecision(12)
               << std::sqrt(maximum_squared_radius) << '\n';
