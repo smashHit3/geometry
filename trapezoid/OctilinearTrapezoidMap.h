@@ -31,9 +31,14 @@ namespace trapezoid {
 // comparison: active curves evaluate to y = slope*x + intercept with
 // slope in {-1, 0, 1}, so no floating point is used anywhere.
 //
-// Point location uses a uniform spatial hash (expected O(1) for uniformly
-// distributed layouts); the decomposition itself does not depend on the
-// distribution.  Face/band identity is carried by edge ids.
+// Point location uses a uniform grid whose bucket budget is split across
+// the two axes by domain aspect ratio, so the total bucket count stays
+// near a fixed multiple of the cell count for any domain shape.  Buckets
+// whose integer extent lies inside a single cell are pre-resolved to that
+// cell, giving an O(1) fast path; other buckets scan a short candidate
+// list (expected O(1) for uniformly distributed layouts).  The
+// decomposition itself does not depend on the distribution.  Face/band
+// identity is carried by edge ids.
 template <typename coordinate_type>
 class OctilinearTrapezoidMap {
     static_assert(std::is_integral_v<coordinate_type>,
@@ -151,7 +156,12 @@ public:
                                             m_cell_size_x, m_grid_nx);
         const std::size_t iy = clampedIndex(y, m_bounds_ymin,
                                             m_cell_size_y, m_grid_ny);
-        for (const std::size_t id : m_grid[iy * m_grid_nx + ix]) {
+        const std::size_t bucket = iy * m_grid_nx + ix;
+        // Fast path: bucket fully inside one cell.
+        if (m_resolved[bucket] != INVALID) {
+            return static_cast<std::int64_t>(m_resolved[bucket]);
+        }
+        for (const std::size_t id : m_grid[bucket]) {
             const Cell& cell = m_cells[id];
             if (x < cell.xmin || x > cell.xmax) {
                 continue;
@@ -163,6 +173,16 @@ public:
             }
         }
         return -1; // unreachable for a point inside the bounding box
+    }
+
+    // Total number of uniform-grid buckets backing locate().
+    std::size_t gridBucketCount() const {
+        return m_grid_nx * m_grid_ny;
+    }
+
+    // Buckets pre-resolved to a single containing cell (O(1) fast path).
+    std::size_t resolvedGridBucketCount() const {
+        return m_resolved_count;
     }
 
     std::int64_t locateFace(coordinate_type x, coordinate_type y) const {
@@ -1093,22 +1113,30 @@ private:
             static_cast<long double>(m_bounds_xmax) - m_bounds_xmin;
         const long double span_y =
             static_cast<long double>(m_bounds_ymax) - m_bounds_ymin;
-        const long double target_cells =
+        const long double target_buckets =
             std::max<long double>(4.0L, 4.0L * m_cells.size());
-        m_cell_size_x = static_cast<value_type>(
-            std::sqrt(span_x * span_y / target_cells));
-        if (static_cast<long double>(m_cell_size_x) <= 0.0L) {
-            m_cell_size_x = static_cast<value_type>(1);
-        }
-        m_cell_size_y = m_cell_size_x;
-        m_grid_nx = std::max<std::size_t>(
-            1, static_cast<std::size_t>(
-                   std::ceil(span_x / static_cast<long double>(
-                                         m_cell_size_x))));
-        m_grid_ny = std::max<std::size_t>(
-            1, static_cast<std::size_t>(
-                   std::ceil(span_y / static_cast<long double>(
-                                         m_cell_size_y))));
+        const std::size_t budget =
+            static_cast<std::size_t>(target_buckets);
+        // Split the bucket budget across the axes by aspect ratio.  A
+        // single shared (square) cell size forces the short axis to clamp
+        // to one row while the long axis compensates, so a thin domain
+        // with a tight margin allocated up to span / cell_size buckets --
+        // far beyond the budget.  Per-axis counts keep the total near the
+        // budget for any domain shape.
+        const long double aspect =
+            std::max(span_x, 1.0L) / std::max(span_y, 1.0L);
+        std::size_t nx = static_cast<std::size_t>(std::max<long double>(
+            1.0L, std::round(std::sqrt(target_buckets * aspect))));
+        nx = std::min(nx, budget);
+        std::size_t ny = static_cast<std::size_t>(std::max<long double>(
+            1.0L,
+            std::round(target_buckets / static_cast<long double>(nx))));
+        ny = std::min(ny, budget);
+
+        m_cell_size_x = gridCellSize(span_x, nx);
+        m_cell_size_y = gridCellSize(span_y, ny);
+        m_grid_nx = gridAxisCount(span_x, m_cell_size_x);
+        m_grid_ny = gridAxisCount(span_y, m_cell_size_y);
         m_grid.assign(m_grid_nx * m_grid_ny, {});
         for (const Cell& cell : m_cells) {
             const value_type cell_ymin =
@@ -1131,6 +1159,76 @@ private:
                 }
             }
         }
+        resolveGridBuckets();
+    }
+
+    static value_type gridCellSize(long double span, std::size_t count) {
+        const long double size =
+            std::ceil(span / static_cast<long double>(count));
+        return static_cast<value_type>(std::max<long double>(1.0L, size));
+    }
+
+    static std::size_t gridAxisCount(long double span,
+                                     value_type cell_size) {
+        const long double count =
+            std::ceil(span / static_cast<long double>(cell_size));
+        return std::max<std::size_t>(
+            1, static_cast<std::size_t>(count));
+    }
+
+    // Pre-resolve every bucket whose integer query extent lies inside a
+    // single cell, so locate() can answer such queries in O(1) without
+    // scanning the candidate list.
+    void resolveGridBuckets() {
+        m_resolved.assign(m_grid_nx * m_grid_ny, INVALID);
+        m_resolved_count = 0;
+        for (std::size_t iy = 0; iy < m_grid_ny; ++iy) {
+            for (std::size_t ix = 0; ix < m_grid_nx; ++ix) {
+                // Integer extent of every query point mapping to this
+                // bucket.  The last row/column ends at the bounds.
+                const value_type x0 = static_cast<value_type>(
+                    static_cast<long long>(m_bounds_xmin) +
+                    static_cast<long long>(ix) * m_cell_size_x);
+                const value_type xe = (ix + 1 < m_grid_nx)
+                    ? static_cast<value_type>(
+                          static_cast<long long>(x0) + m_cell_size_x - 1)
+                    : m_bounds_xmax;
+                const value_type y0 = static_cast<value_type>(
+                    static_cast<long long>(m_bounds_ymin) +
+                    static_cast<long long>(iy) * m_cell_size_y);
+                const value_type ye = (iy + 1 < m_grid_ny)
+                    ? static_cast<value_type>(
+                          static_cast<long long>(y0) + m_cell_size_y - 1)
+                    : m_bounds_ymax;
+                const std::size_t bucket = iy * m_grid_nx + ix;
+                for (const std::size_t id : m_grid[bucket]) {
+                    if (gridBucketInsideCell(m_cells[id], x0, xe, y0, ye)) {
+                        m_resolved[bucket] = id;
+                        ++m_resolved_count;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Whether the axis-aligned integer rectangle [x0, xe] x [y0, ye] lies
+    // inside the cell.  Cells are convex (two vertical sides, two boundary
+    // lines of slope in {-1, 0, 1}), so the rectangle is contained exactly
+    // when all four corners are, and the corner tests reduce to four
+    // comparisons.
+    bool gridBucketInsideCell(const Cell& cell, value_type x0,
+                              value_type xe, value_type y0,
+                              value_type ye) const {
+        if (cell.xmin > x0 || cell.xmax < xe) {
+            return false;
+        }
+        const value_type lower_left = edgeY(cell.lowerEdge, x0);
+        const value_type upper_left = edgeY(cell.upperEdge, x0);
+        const value_type lower_right = edgeY(cell.lowerEdge, xe);
+        const value_type upper_right = edgeY(cell.upperEdge, xe);
+        return y0 >= lower_left && y0 >= lower_right &&
+               ye <= upper_left && ye <= upper_right;
     }
 
     static std::size_t clampedIndex(value_type value, value_type origin,
@@ -1166,6 +1264,8 @@ private:
     std::size_t m_grid_nx = 1;
     std::size_t m_grid_ny = 1;
     std::vector<std::vector<std::size_t>> m_grid;
+    std::vector<std::size_t> m_resolved;
+    std::size_t m_resolved_count = 0;
 };
 
 } // namespace trapezoid

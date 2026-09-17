@@ -381,4 +381,65 @@ TEST(OctilinearTrapezoidMapTest, MatchesBruteForceOnMixedLayout) {
     }
 }
 
+TEST(OctilinearTrapezoidMapTest, GridBucketBudgetHeldOnThinDomains) {
+    // A tight margin on a thin domain must not inflate the bucket count
+    // along the long axis (square buckets used to allocate up to
+    // span / cell_size buckets there).
+    const std::vector<Segment> wide = {
+        seg(0, 0, 100000, 0), seg(0, 2, 100000, 2)};
+    Map wide_map(wide, 1.0L);
+    EXPECT_LE(wide_map.gridBucketCount(),
+              8 * wide_map.cells().size() + 16);
+
+    const std::vector<Segment> tall = {
+        seg(0, 0, 0, 100000), seg(2, 0, 2, 100000)};
+    Map tall_map(tall, 1.0L);
+    EXPECT_LE(tall_map.gridBucketCount(),
+              8 * tall_map.cells().size() + 16);
+}
+
+TEST(OctilinearTrapezoidMapTest, ResolvesInteriorBucketsToSingleCells) {
+    // Buckets whose extent lies inside one cell are pre-resolved to that
+    // cell; for this layout a clear majority takes the O(1) fast path.
+    Map map(rectangle(0, 0, 4, 2));
+    EXPECT_GT(map.resolvedGridBucketCount(), 0u);
+    EXPECT_LE(map.resolvedGridBucketCount(), map.gridBucketCount());
+    EXPECT_GT(2 * map.resolvedGridBucketCount(), map.gridBucketCount());
+}
+
+TEST(OctilinearTrapezoidMapTest, MatchesBruteForceOnThinRectangle) {
+    // Anisotropic domain with a tight margin: every integer point must
+    // land in a cell of the correct face (aspect-balanced bucket sizing
+    // keeps the grid a single row here; only the outer full-height
+    // columns resolve).
+    constexpr long long length = 100000;
+    const std::vector<Segment> box = rectangle(0, 0, length, 2);
+    Map map(box, 1.0L);
+    EXPECT_EQ(map.faceCount(), 2u);
+
+    const auto bounds = map.bounds();
+    std::vector<std::int64_t> owner_by_face(map.faceCount(), -2);
+    for (long long x = bounds.xmin; x <= bounds.xmax; ++x) {
+        for (long long y = bounds.ymin; y <= bounds.ymax; ++y) {
+            const bool on_boundary =
+                ((y == 0 || y == 2) && x >= 0 && x <= length) ||
+                ((x == 0 || x == length) && y >= 0 && y <= 2);
+            if (on_boundary) {
+                continue;
+            }
+            const std::int64_t owner =
+                (x > 0 && x < length && y > 0 && y < 2) ? 0 : -1;
+            const std::int64_t cell_id = map.locate(x, y);
+            ASSERT_GE(cell_id, 0) << "gap at (" << x << "," << y << ")";
+            const std::size_t face = map.cells()[cell_id].face;
+            std::int64_t& slot = owner_by_face[face];
+            if (slot == -2) {
+                slot = owner;
+            } else {
+                EXPECT_EQ(slot, owner) << "face merges distinct regions";
+            }
+        }
+    }
+}
+
 } // namespace trapezoid::unittest
